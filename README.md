@@ -8,6 +8,7 @@ An open, source-backed learning environment for production AI engineering. The 2
 - A visual, searchable curriculum with 104 dependency-linked concepts
 - Track and completion filters
 - Local progress tracking (no account required)
+- Directed dependency view for the selected topic, with keyboard navigation and text relationship labels
 - Machine-readable curriculum metadata
 - Coverage from software, data, MLOps, classic ML and transformers through RAG, agents, MCP, A2A, applied ML domains, multimodal/realtime systems, evaluation, safety, fine-tuning, inference, and production
 - A unique Inspect, Modify, or Build exercise for every topic, with a topic-specific starter artifact and evidence checklist
@@ -87,6 +88,10 @@ The evidence and gap analysis behind the current scope is recorded in [docs/CURR
 The curriculum was technically reviewed on **2026-09-29**. Durable concepts are separated from provider-specific details, current protocol versions are named where relevant, and each track links to primary specifications or official documentation. “Complete” means complete role coverage for an AI engineer; the repository does not claim that a fast-moving research field can ever be permanently finished.
 
 ## Pages
+
+On the roadmap, the dependency view shows prerequisites → selected topic → immediate dependents. Tab enters the graph; Left/Right moves between columns, Up/Down moves within a column, and Home/End moves to the first/last graph topic. Enter or Space selects a topic. Tab leaves the graph normally. Selecting a related topic outside the current results clears the filters and announces the change. On narrow screens, the graph scrolls horizontally and keeps keyboard focus in view.
+
+Optional browser regression checks use an existing Node.js, Playwright, and Chrome installation: serve the site with `./run.sh`, then run `node tests/roadmap-browser.cjs`. Set `NODE_PATH` if Playwright is installed outside the repository, `CHROME_PATH` for another Chrome binary, or `BASE_URL` for another local port. The site and `./run.sh check` remain dependency-free.
 
 - `index.html` — curriculum landing page
 - `roadmap.html` — search, filtering, dependency state, and concept inspector
