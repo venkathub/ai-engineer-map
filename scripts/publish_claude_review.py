@@ -47,7 +47,13 @@ def inline(value: object) -> str:
 
 def workflow_message(value: object) -> str:
     """Escape a workflow-command message body, never command properties."""
-    return str(value).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    return (
+        str(value)
+        .replace("%", "%25")
+        .replace("::", "%3A%3A")
+        .replace("\r", "%0D")
+        .replace("\n", "%0A")
+    )
 
 
 def safe_path(path: object) -> bool:

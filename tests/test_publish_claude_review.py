@@ -23,7 +23,7 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertNotIn("[x]", rendered)
 
     def test_cli_surfaces_a_safely_escaped_actions_error(self):
-        error = publisher.PublishError("blocked: 100%, retry\nneeds-human")
+        error = publisher.PublishError("blocked:: 100%, retry\nneeds-human")
         with (
             mock.patch.object(publisher, "main", side_effect=error),
             io.StringIO() as stderr,
@@ -32,7 +32,7 @@ class PublishClaudeReviewTests(unittest.TestCase):
             self.assertEqual(publisher.cli(), 1)
             rendered = stderr.getvalue()
         self.assertIn("::error title=Claude review publisher::", rendered)
-        self.assertIn("blocked: 100%25, retry%0Aneeds-human", rendered)
+        self.assertIn("blocked%3A%3A 100%25, retry%0Aneeds-human", rendered)
         self.assertNotIn("100%, retry\n", rendered)
 
     def test_paths_reject_traversal_and_controls(self):
