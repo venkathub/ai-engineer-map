@@ -47,17 +47,29 @@ def _plain_text(value: str) -> str:
     )
 
 
-def _safe_markdown(value: str) -> str:
+def _safe_markdown(value: str, limit: int = 4_000) -> str:
     """Render model-controlled content as inert Markdown text."""
     flattened = _plain_text(value)
+    if len(flattened) > limit:
+        flattened = flattened[:limit].rstrip() + " … [truncated]"
     escaped = re.sub(r"([\\`*_\[\]<>|~])", r"\\\1", flattened)
     if escaped.startswith(("#", ">", "-", "+")):
         escaped = "\\" + escaped
     return re.sub(r"^(\d+)\.", r"\1\\.", escaped)
 
 
-def _inline_code(value: str) -> str:
-    return _plain_text(value).replace("`", "'")
+def _inline_code(value: str, limit: int = 1_000) -> str:
+    flattened = _plain_text(value)
+    if len(flattened) > limit:
+        flattened = flattened[:limit].rstrip() + " … [truncated]"
+    return flattened.replace("`", "'")
+
+
+def _append_within(lines: list[str], block: list[str], limit: int) -> bool:
+    if len("\n".join([*lines, *block])) > limit:
+        return False
+    lines.extend(block)
+    return True
 
 
 def _commit_label(reviewed_sha: str) -> str:
@@ -174,24 +186,31 @@ def render_review(review: dict[str, Any], reviewed_sha: str, route: str = "") ->
             location += f":{finding['line']}"
         location_display = _inline_code(location)
         finding_id_display = _inline_code(finding["id"])
-        lines.extend(
-            [
-                f"- **[{finding['severity'].upper()}] {_safe_markdown(finding['title'])}** "
-                f"(`{location_display}`; ID `{finding_id_display}`)",
-                f"  - {_safe_markdown(finding['details'])}",
-                f"  - Fix: {_safe_markdown(finding['recommendation'])}",
-            ]
-        )
+        block = [
+            f"- **[{finding['severity'].upper()}] {_safe_markdown(finding['title'], 1_000)}** "
+            f"(`{location_display}`; ID `{finding_id_display}`)",
+            f"  - {_safe_markdown(finding['details'])}",
+            f"  - Fix: {_safe_markdown(finding['recommendation'])}",
+        ]
+        if not _append_within(lines, block, 45_000):
+            lines.append("_Additional findings omitted from this comment at a finding boundary._")
+            break
 
     lines.extend(["", "### Evidence considered", ""])
     if review["tests_reviewed"]:
-        lines.extend(f"- {_safe_markdown(item)}" for item in review["tests_reviewed"])
+        for item in review["tests_reviewed"]:
+            if not _append_within(lines, [f"- {_safe_markdown(item, 2_000)}"], 52_000):
+                lines.append("_Additional evidence omitted from this comment._")
+                break
     else:
         lines.append("- No test evidence was reported by Claude.")
 
     lines.extend(["", "### Residual risks", ""])
     if review["residual_risks"]:
-        lines.extend(f"- {_safe_markdown(item)}" for item in review["residual_risks"])
+        for item in review["residual_risks"]:
+            if not _append_within(lines, [f"- {_safe_markdown(item, 2_000)}"], 58_000):
+                lines.append("_Additional residual risks omitted from this comment._")
+                break
     else:
         lines.append("- None reported.")
     lines.extend(
@@ -201,7 +220,7 @@ def render_review(review: dict[str, Any], reviewed_sha: str, route: str = "") ->
             "when the current commit is approved with zero blocking findings.",
         ]
     )
-    return "\n".join(lines)[:60_000] + "\n"
+    return "\n".join(lines) + "\n"
 
 
 def render_unavailable(reason: str, reviewed_sha: str) -> str:

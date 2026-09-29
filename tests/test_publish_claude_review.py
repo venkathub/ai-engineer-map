@@ -61,6 +61,28 @@ class PublishClaudeReviewTests(unittest.TestCase):
             {"path": "target.py", "line": 3, "side": "RIGHT"},
         )
 
+    def test_inline_failure_falls_back_only_for_http_422(self):
+        class Client:
+            def __init__(self, status):
+                self.status = status
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                if len(self.calls) == 1:
+                    raise publisher.PublishError("failed", status=self.status)
+                return {}
+
+        anchor = {"path": "target.py", "line": 3, "side": "RIGHT"}
+        client = Client(422)
+        publisher.create_thread_or_review(client, 4, "a" * 40, anchor, "body")
+        self.assertEqual(client.calls[1][1], "/pulls/4/reviews")
+
+        client = Client(500)
+        with self.assertRaises(publisher.PublishError):
+            publisher.create_thread_or_review(client, 4, "a" * 40, anchor, "body")
+        self.assertEqual(len(client.calls), 1)
+
     def test_blocking_severities_match_kaasu_policy(self):
         self.assertEqual(publisher.BLOCKING, {"critical", "high", "medium"})
 

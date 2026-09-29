@@ -139,6 +139,24 @@ class ClaudeReviewGateTests(unittest.TestCase):
         report = review_gate.render_review(review, "abc123", "Claude subscription OAuth")
         self.assertIn("Review route: `Claude subscription OAuth`", report)
 
+    def test_long_report_truncates_only_at_finding_boundary(self):
+        finding = {
+            "id": "long",
+            "severity": "low",
+            "path": "src/example.py",
+            "line": 7,
+            "title": "Long finding",
+            "details": "d" * 5_000,
+            "recommendation": "r" * 5_000,
+        }
+        review = review_gate.normalize_review(
+            review_payload("APPROVED", [finding] * review_gate.MAX_FINDINGS)
+        )
+        report = review_gate.render_review(review, "a" * 40)
+        self.assertLess(len(report), 60_000)
+        self.assertIn("omitted from this comment at a finding boundary", report)
+        self.assertTrue(report.endswith("zero blocking findings.\n"))
+
     def test_machine_artifact_contains_only_validated_review(self):
         review = review_gate.normalize_review(review_payload())
         with tempfile.TemporaryDirectory() as directory:

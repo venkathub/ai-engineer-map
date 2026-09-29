@@ -27,7 +27,9 @@ MAX_RESPONSE = 5_000_000
 
 
 class PublishError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 def inert(value: object) -> str:
@@ -77,7 +79,9 @@ class GitHub:
             with urllib.request.urlopen(request, timeout=60) as response:
                 raw = response.read(MAX_RESPONSE + 1)
         except urllib.error.HTTPError as exc:
-            raise PublishError(f"GitHub API {method} {path} failed with HTTP {exc.code}") from exc
+            raise PublishError(
+                f"GitHub API {method} {path} failed with HTTP {exc.code}", status=exc.code
+            ) from exc
         except (TimeoutError, urllib.error.URLError) as exc:
             raise PublishError("GitHub API request failed before receiving a response") from exc
         if len(raw) > MAX_RESPONSE:
@@ -189,8 +193,9 @@ def create_thread_or_review(
         try:
             create_inline(client, pr, sha, anchor, body)
             return
-        except PublishError:
-            pass
+        except PublishError as exc:
+            if exc.status != 422:
+                raise
     client.rest("POST", f"/pulls/{pr}/reviews", {"body": body[:60_000], "commit_id": sha, "event": "COMMENT"})
 
 
@@ -313,6 +318,34 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         raise PublishError(
             "publication is paused by needs-human; set CLAUDE_HUMAN_REREVIEW=true only for an authorized forced review"
         )
+    expected_approved = os.environ.get("REVIEW_APPROVED")
+    expected_count = os.environ.get("REVIEW_FINDING_COUNT", "")
+    if expected_approved not in {"true", "false"} or not expected_count.isdigit():
+        raise PublishError("review decision outputs are missing or invalid")
+    status = artifact.get("status")
+    if status == "ERROR":
+        if not isinstance(artifact.get("error"), str) or expected_approved != "false" or expected_count != "0":
+            raise PublishError("error artifact disagrees with the fail-closed decision")
+        review = None
+        findings: list[dict[str, Any]] = []
+    elif status != "OK":
+        raise PublishError("validated review artifact has an invalid status")
+    else:
+        review = artifact.get("review")
+        if not isinstance(review, dict) or review.get("verdict") not in {"APPROVED", "CHANGES_REQUESTED"}:
+            raise PublishError("review artifact has an invalid verdict")
+        findings = review.get("findings")
+        if not isinstance(findings, list) or len(findings) > 100:
+            raise PublishError("review artifact has invalid findings")
+        blocking_count = sum(
+            1 for finding in findings if finding.get("severity") in BLOCKING
+        )
+        if (review["verdict"] == "APPROVED") != (expected_approved == "true"):
+            raise PublishError("review artifact disagrees with the approval decision")
+        if blocking_count != int(expected_count):
+            raise PublishError("review artifact disagrees with the blocking finding count")
+
+    # Only validated artifacts may become visible PR state.
     issue_comments = list_pages(client, f"/issues/{args.pr}/comments")
     prior_audit = next((item for item in issue_comments if AUDIT_MARKER in (item.get("body") or "")), None)
     report = args.report.read_text(encoding="utf-8")[:60_000]
@@ -320,28 +353,10 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         audit = client.rest("PATCH", f"/issues/comments/{prior_audit['id']}", {"body": report})
     else:
         audit = client.rest("POST", f"/issues/{args.pr}/comments", {"body": report})
-    if artifact.get("status") == "ERROR":
+    if status == "ERROR":
         set_labels(client, args.pr, set(), {"claude:approved"})
         return
-    if artifact.get("status") != "OK":
-        raise PublishError("validated review artifact has an invalid status")
-    review = artifact.get("review")
-    if not isinstance(review, dict) or review.get("verdict") not in {"APPROVED", "CHANGES_REQUESTED"}:
-        raise PublishError("review artifact has an invalid verdict")
-    findings = review.get("findings")
-    if not isinstance(findings, list) or len(findings) > 100:
-        raise PublishError("review artifact has invalid findings")
-    expected_approved = os.environ.get("REVIEW_APPROVED")
-    expected_count = os.environ.get("REVIEW_FINDING_COUNT", "")
-    if expected_approved not in {"true", "false"} or not expected_count.isdigit():
-        raise PublishError("review decision outputs are missing or invalid")
-    blocking_count = sum(
-        1 for finding in findings if finding.get("severity") in BLOCKING
-    )
-    if (review["verdict"] == "APPROVED") != (expected_approved == "true"):
-        raise PublishError("review artifact disagrees with the approval decision")
-    if blocking_count != int(expected_count):
-        raise PublishError("review artifact disagrees with the blocking finding count")
+    assert review is not None
 
     round_number, same_round = review_round(issue_comments, args.sha)
     counts = {severity: 0 for severity in ("critical", "high", "medium", "low")}

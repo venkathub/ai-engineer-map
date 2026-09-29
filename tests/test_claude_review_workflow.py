@@ -24,6 +24,7 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("checks: read", analyze)
         self.assertIn("curriculum-and-labs", analyze)
         self.assertIn("commits/${HEAD_SHA}/check-runs", analyze)
+        self.assertIn("sort_by(.id) | last", analyze)
 
     def test_oauth_detection_never_prints_the_secret(self):
         detection = self.workflow.split("      - name: Detect subscription authentication", 1)[
