@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CURRICULUM = ROOT / "curriculum" / "concepts.json"
+HOE_CATALOG = ROOT / "curriculum" / "hoe.json"
 REQUIRED = {"id", "title", "track", "order", "level", "minutes", "summary", "prerequisites", "outcomes", "exercise"}
 MODERN_CORE = {
     "transformers", "reasoning-models", "rag-quality", "mcp", "mcp-tasks", "a2a",
@@ -31,6 +32,74 @@ EXERCISE_VERBS = {
     "rewrite", "run", "secure", "specify", "storyboard", "threat-model", "train",
     "turn", "visualize", "write",
 }
+HOE_MODES = {"browser", "local", "byo-api", "gpu"}
+HOE_STATUSES = {"guided", "automated", "setup-ready"}
+HOE_RUNNERS = {"guided", "command", "manual"}
+HOE_PROFILE_REQUIRED = {
+    "mode", "status", "runner", "estimatedMinutes", "estimatedCost",
+    "requirements", "setup", "run", "verify", "artifacts", "cleanup",
+    "provider", "gpuBackend",
+}
+BANNED_COMMAND_EXECUTABLES = {"bash", "cmd", "fish", "powershell", "pwsh", "sh", "zsh"}
+
+
+def validate_hoe_catalog(known: set[str]) -> list[str]:
+    errors: list[str] = []
+    try:
+        catalog = json.loads(HOE_CATALOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"cannot read HOE catalog: {error}"]
+    if catalog.get("schemaVersion") != 1:
+        errors.append("HOE schemaVersion must be 1")
+    profiles = catalog.get("profiles", {})
+    topics = catalog.get("topics", {})
+    if not isinstance(profiles, dict) or not profiles:
+        return errors + ["HOE profiles must be a non-empty object"]
+    if not isinstance(topics, dict):
+        return errors + ["HOE topics must be an object"]
+
+    assigned = set(topics)
+    if missing := sorted(known - assigned):
+        errors.append(f"HOE topics missing concept assignments: {missing}")
+    if extra := sorted(assigned - known):
+        errors.append(f"HOE topics contain unknown concepts: {extra}")
+    for topic_id, profile_id in topics.items():
+        if profile_id not in profiles:
+            errors.append(f"{topic_id}: unknown HOE profile {profile_id}")
+
+    for profile_id, profile in profiles.items():
+        if not isinstance(profile, dict):
+            errors.append(f"{profile_id}: HOE profile must be an object")
+            continue
+        missing_fields = sorted(HOE_PROFILE_REQUIRED - set(profile))
+        if missing_fields:
+            errors.append(f"{profile_id}: missing HOE fields {missing_fields}")
+            continue
+        if profile["mode"] not in HOE_MODES:
+            errors.append(f"{profile_id}: invalid HOE mode")
+        if profile["status"] not in HOE_STATUSES:
+            errors.append(f"{profile_id}: invalid HOE status")
+        if profile["runner"] not in HOE_RUNNERS:
+            errors.append(f"{profile_id}: invalid HOE runner")
+        if not isinstance(profile["estimatedMinutes"], int) or profile["estimatedMinutes"] < 1:
+            errors.append(f"{profile_id}: estimatedMinutes must be a positive integer")
+        if not profile["estimatedCost"] or not profile["artifacts"]:
+            errors.append(f"{profile_id}: cost and artifacts are required")
+        for command_name in ("setup", "run", "verify"):
+            command = profile[command_name]
+            if command is not None and (
+                not isinstance(command, list)
+                or not command
+                or not all(isinstance(part, str) and part for part in command)
+            ):
+                errors.append(f"{profile_id}: {command_name} must be null or a non-empty argv list")
+            elif command and pathlib.Path(command[0]).name.lower() in BANNED_COMMAND_EXECUTABLES:
+                errors.append(f"{profile_id}: {command_name} cannot invoke a shell")
+        if profile["status"] == "automated" and (profile["runner"] != "command" or not profile["run"] or not profile["verify"]):
+            errors.append(f"{profile_id}: automated profiles need command run and verify argv")
+        if profile["mode"] in {"byo-api", "gpu"} and profile["status"] == "automated":
+            errors.append(f"{profile_id}: external-cost profiles cannot be implicitly automated")
+    return errors
 
 
 def validate() -> list[str]:
@@ -127,6 +196,7 @@ def validate() -> list[str]:
         visit(concept_id)
     if len({item["exercise"] for item in concepts}) != len(concepts):
         errors.append("every concept must have a unique hands-on exercise")
+    errors.extend(validate_hoe_catalog(known))
     for track_id in tracks:
         actual = sorted(item["order"] for item in concepts if item["track"] == track_id)
         if actual != list(range(1, len(actual) + 1)):

@@ -19,6 +19,8 @@ REQUIRED_FILES = [
     ".ai/templates/IMPLEMENTATION_PLAN.md",
     ".env.example",
     "docs/BYO_LLM_AND_GPU.md",
+    "curriculum/hoe.json",
+    "curriculum/hoe.schema.json",
 ]
 SECRET_VARIABLES = {
     "OPENAI_API_KEY",

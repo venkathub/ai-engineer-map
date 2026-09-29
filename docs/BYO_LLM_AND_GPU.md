@@ -13,7 +13,7 @@ Do not paste a key into curriculum JSON, browser storage, a URL, a notebook outp
 ```bash
 cp .env.example .env
 # Add exactly the provider and model you intend to use.
-./run.sh hoe --provider openai
+./run.sh hoe check --provider openai
 ```
 
 Supported configuration profiles are `openai`, `anthropic`, `gemini`, `openrouter`, and `compatible`. The compatible profile accepts an OpenAI-compatible endpoint such as a local vLLM or Ollama server through `LLM_BASE_URL`, `LLM_MODEL`, and optional `LLM_API_KEY`.
@@ -39,8 +39,8 @@ Use the least expensive mode that proves the outcome:
 Check the intended setup without creating anything:
 
 ```bash
-./run.sh hoe --provider compatible --gpu local
-./run.sh hoe --provider openai --gpu jarvislabs
+./run.sh hoe check --provider compatible --gpu local
+./run.sh hoe check --provider openai --gpu jarvislabs
 ```
 
 ## JarvisLabs quick path
@@ -59,6 +59,17 @@ For unattended automation, JarvisLabs supports `JL_API_KEY`; keep it in the secr
 The official managed-run workflow pauses the instance it creates when the job completes. Paused storage and shared storage can still incur cost. Inspect the JarvisLabs dashboard after every exercise and remove resources you no longer need. The documented shared filesystem is mounted at `/home/jl_fs`; use it only for artifacts that must survive instance replacement and never store plaintext API keys there.
 
 The smoke test validates CUDA visibility and a small matrix multiplication. It does not download a model or dataset, create a service, or expose a network port. For serving exercises, follow the official JarvisLabs vLLM or Ollama tutorial and restrict public access; both can present an OpenAI-compatible API to the `compatible` profile.
+
+## Topic execution catalog
+
+`curriculum/hoe.json` assigns every concept to a versioned execution profile. Inspect the resolved contract before starting:
+
+```bash
+./run.sh hoe inspect model-apis
+./run.sh hoe inspect peft
+```
+
+The CLI refuses API/GPU command execution unless `--allow-billable` is supplied. That flag is acknowledgement only: it never provisions a service, buys credits, or creates a GPU instance. A `setup-ready` result means prerequisites and safety guidance exist; it does not mean the topic experiment has been automated.
 
 ## Reproducibility record
 
