@@ -21,6 +21,9 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("contents: read", analyze)
         self.assertIn("pull-requests: read", analyze)
         self.assertNotIn("pull-requests: write", analyze)
+        self.assertIn("checks: read", analyze)
+        self.assertIn("curriculum-and-labs", analyze)
+        self.assertIn("commits/${HEAD_SHA}/check-runs", analyze)
 
     def test_oauth_detection_never_prints_the_secret(self):
         detection = self.workflow.split("      - name: Detect subscription authentication", 1)[
@@ -33,7 +36,7 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
 
     def test_required_gate_depends_on_analysis_and_publication(self):
         gate = self.workflow.split("  claude-review:", 1)[1]
-        self.assertIn("needs: [analyze, publish]", gate)
+        self.assertIn("needs: [block, analyze, publish]", gate)
         self.assertIn("needs.analyze.outputs.approved", gate)
         self.assertIn("needs.publish.result", gate)
 
@@ -45,18 +48,28 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
 
     def test_publisher_maintains_a_separate_resolvable_review_thread(self):
         publisher = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
-        self.assertIn("<!-- claude-review-thread -->", publisher)
-        self.assertIn("createReviewComment", publisher)
-        self.assertIn("resolveReviewThread", publisher)
-        self.assertIn("unresolveReviewThread", publisher)
-        self.assertIn("createReview", publisher)
-        self.assertNotIn('throw new Error("No added diff line', publisher)
-        self.assertIn('^[0-9a-f]{40}$', publisher)
-        self.assertIn("per_page: 50", publisher)
-        self.assertIn("lineBudget = 10000", publisher)
-        self.assertIn("safeAnchorPath", publisher)
-        self.assertIn('!path.split("/").includes("..")', publisher)
-        self.assertIn("This thread remains unresolved", publisher)
+        script = (ROOT / "scripts" / "publish_claude_review.py").read_text(encoding="utf-8")
+        self.assertIn("publish_claude_review.py --mode publish", publisher)
+        self.assertIn("<!-- claude-review-thread -->", script)
+        self.assertIn("<!-- claude-review-finding:", script)
+        self.assertIn("resolveReviewThread", script)
+        self.assertIn("unresolveReviewThread", script)
+        self.assertIn("create_thread_or_review", script)
+        self.assertIn("safe_path", script)
+        self.assertIn("reply here after fixing; do not resolve", script)
+        self.assertIn('"needs-human"', script)
+
+    def test_unreviewed_head_is_blocked_before_analysis(self):
+        block = self.workflow.split("  block:", 1)[1].split("  analyze:", 1)[0]
+        analyze = self.workflow.split("  analyze:", 1)[1].split("  publish:", 1)[0]
+        self.assertIn("publish_claude_review.py --mode block", block)
+        self.assertIn("issues: write", block)
+        self.assertIn("pull-requests: write", block)
+        self.assertIn("needs: block", analyze)
+
+    def test_validated_json_crosses_the_job_boundary(self):
+        self.assertIn("--json-output claude-review.json", self.workflow)
+        self.assertIn("claude-review.json", self.workflow)
 
     def test_supply_chain_and_model_freshness_are_monitored(self):
         dependabot = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")

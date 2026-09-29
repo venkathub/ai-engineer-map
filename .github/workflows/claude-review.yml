@@ -9,11 +9,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  block:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Check out trusted base revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Block the exact unreviewed head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >-
+          python3 scripts/publish_claude_review.py --mode block
+          --pr ${{ github.event.pull_request.number }}
+          --sha ${{ github.event.pull_request.head.sha }}
+
   analyze:
+    needs: block
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      checks: read
       contents: read
       pull-requests: read
     outputs:
@@ -26,6 +52,26 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
+
+      - name: Wait for validation on the exact head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for attempt in $(seq 1 40); do
+            conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" \
+              --jq '[.check_runs[] | select(.name == "curriculum-and-labs")][0].conclusion // "pending"')
+            case "$conclusion" in
+              success) exit 0 ;;
+              failure|cancelled|timed_out|action_required|startup_failure|stale)
+                echo "curriculum-and-labs did not pass for ${HEAD_SHA}." >&2
+                exit 1
+                ;;
+            esac
+            sleep 15
+          done
+          echo "Timed out waiting for curriculum-and-labs on ${HEAD_SHA}." >&2
+          exit 1
 
       - name: Detect subscription authentication
         id: oauth
@@ -60,7 +106,8 @@ jobs:
 
             List only actionable findings this PR author can fix. Put pre-existing issues
             and optional improvements in residual_risks. Re-review the complete current diff.
-            Return APPROVED only when findings is empty; otherwise return CHANGES_REQUESTED.
+            Return APPROVED when no critical, high, or medium findings remain; LOW notes
+            may accompany approval. Otherwise return CHANGES_REQUESTED.
             Do not edit, execute PR code, push, merge, comment, or reproduce secrets.
           claude_args: |
             --max-turns 10
@@ -76,7 +123,9 @@ jobs:
           CLAUDE_REVIEW_JSON: ${{ steps.subscription.outputs.structured_output }}
           REVIEW_ROUTE: Claude subscription OAuth
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 scripts/claude_review_gate.py --output claude-review.md
+        run: >-
+          python3 scripts/claude_review_gate.py --output claude-review.md
+          --json-output claude-review.json
 
       - name: Review with Anthropic API fallback
         id: api-gate
@@ -87,7 +136,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 scripts/claude_api_review.py --output claude-review.md
+        run: >-
+          python3 scripts/claude_api_review.py --output claude-review.md
+          --json-output claude-review.json
 
       - name: Validate selected review route
         id: decision
@@ -110,7 +161,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: claude-review-${{ github.event.pull_request.number }}
-          path: claude-review.md
+          path: |
+            claude-review.md
+            claude-review.json
           if-no-files-found: error
           retention-days: 1
 
@@ -120,9 +173,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: read
-      contents: none
+      contents: read
+      issues: write
       pull-requests: write
     steps:
+      - name: Check out trusted base revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
       - name: Download sanitized review report
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -130,169 +190,19 @@ jobs:
 
       - name: Publish current Claude review
         env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           REVIEW_APPROVED: ${{ needs.analyze.outputs.approved }}
           REVIEW_FINDING_COUNT: ${{ needs.analyze.outputs.finding_count }}
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            const fs = require("fs");
-            const report = fs.readFileSync("claude-review.md", "utf8");
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const pull_number = context.issue.number;
-            const auditMarker = "<!-- claude-pr-review -->";
-            const threadMarker = "<!-- claude-review-thread -->";
-            const approved = process.env.REVIEW_APPROVED === "true";
-            if (!/^\d+$/.test(process.env.REVIEW_FINDING_COUNT)) {
-              throw new Error("REVIEW_FINDING_COUNT must be a non-negative integer");
-            }
-            const findingCount = Number(process.env.REVIEW_FINDING_COUNT);
-            if (!/^[0-9a-f]{40}$/.test(process.env.REVIEWED_SHA)) {
-              throw new Error("REVIEWED_SHA must be a 40-character lowercase Git commit ID");
-            }
-
-            const issueComments = await github.paginate(github.rest.issues.listComments, {
-              owner, repo, issue_number: pull_number, per_page: 100,
-            });
-            const previousAudit = issueComments.find((comment) =>
-              comment.body && comment.body.includes(auditMarker));
-            const audit = previousAudit
-              ? await github.rest.issues.updateComment({
-                  owner, repo, comment_id: previousAudit.id, body: report,
-                })
-              : await github.rest.issues.createComment({
-                  owner, repo, issue_number: pull_number, body: report,
-                });
-
-            const auditUrl = audit.data.html_url;
-            const compact = [
-              threadMarker,
-              approved ? "### ✅ Claude approved" : "### ❌ Claude changes requested",
-              "",
-              `Commit \`${process.env.REVIEWED_SHA.slice(0, 12)}\`: ${findingCount} actionable finding(s).`,
-              `[Open the complete sanitized audit report](${auditUrl}).`,
-              "",
-              approved
-                ? "Claude approved this exact revision; this review thread is now resolved."
-                : "This thread remains unresolved until Claude approves a later exact revision.",
-            ].join("\n");
-
-            const reviewComments = await github.paginate(github.rest.pulls.listReviewComments, {
-              owner, repo, pull_number, per_page: 100,
-            });
-            const previousThreadComment = reviewComments.find((comment) =>
-              comment.body && comment.body.includes(threadMarker));
-            async function findThread(commentId, marker) {
-              const threadData = await github.graphql(`
-                query($owner: String!, $repo: String!, $number: Int!) {
-                  repository(owner: $owner, name: $repo) {
-                    pullRequest(number: $number) {
-                      reviewThreads(first: 100) {
-                        nodes {
-                          id
-                          isResolved
-                          comments(first: 100) { nodes { databaseId body } }
-                        }
-                      }
-                    }
-                  }
-                }
-              `, { owner, repo, number: pull_number });
-              return threadData.repository.pullRequest.reviewThreads.nodes.find((candidate) =>
-                candidate.comments.nodes.some((comment) =>
-                  (commentId && comment.databaseId === commentId) ||
-                  (comment.body && comment.body.includes(marker))));
-            }
-
-            if (approved) {
-              if (previousThreadComment) {
-                await github.rest.pulls.updateReviewComment({
-                  owner, repo, comment_id: previousThreadComment.id, body: compact,
-                });
-                const currentThread = await findThread(previousThreadComment.id, threadMarker);
-                if (currentThread && !currentThread.isResolved) {
-                  await github.graphql(`
-                    mutation($threadId: ID!) {
-                      resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
-                    }
-                  `, { threadId: currentThread.id });
-                }
-              }
-            } else if (previousThreadComment) {
-              await github.rest.pulls.updateReviewComment({
-                owner, repo, comment_id: previousThreadComment.id, body: compact,
-              });
-              const currentThread = await findThread(previousThreadComment.id, threadMarker);
-              if (currentThread && currentThread.isResolved) {
-                await github.graphql(`
-                  mutation($threadId: ID!) {
-                    unresolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
-                  }
-                `, { threadId: currentThread.id });
-              }
-            } else {
-              const filesResponse = await github.rest.pulls.listFiles({
-                owner, repo, pull_number, per_page: 50, page: 1,
-              });
-              const files = filesResponse.data;
-              const safeAnchorPath = (path) =>
-                typeof path === "string" && path.length > 0 && path.length <= 1024 &&
-                !path.startsWith("/") && !path.includes("\\") &&
-                !path.split("/").includes("..") && !/[\u0000-\u001f\u007f]/.test(path);
-              let anchor = null;
-              let deletionAnchor = null;
-              let lineBudget = 10000;
-              fileScan: for (const file of files) {
-                if (!file.patch || !safeAnchorPath(file.filename)) continue;
-                let oldLine = 0;
-                let newLine = 0;
-                for (const line of file.patch.split("\n")) {
-                  lineBudget -= 1;
-                  if (lineBudget < 0) break fileScan;
-                  const header = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-                  if (header) {
-                    oldLine = Number(header[1]);
-                    newLine = Number(header[2]);
-                  } else if (line.startsWith("+") && !line.startsWith("+++")) {
-                    anchor = { path: file.filename, line: newLine, side: "RIGHT" };
-                    break;
-                  } else if (line.startsWith("-") && !line.startsWith("---")) {
-                    deletionAnchor ||= { path: file.filename, line: oldLine, side: "LEFT" };
-                    oldLine += 1;
-                  } else {
-                    oldLine += 1;
-                    newLine += 1;
-                  }
-                }
-                if (anchor) break;
-              }
-              anchor ||= deletionAnchor;
-              if (anchor) {
-                try {
-                  await github.rest.pulls.createReviewComment({
-                    owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
-                    path: anchor.path, line: anchor.line, side: anchor.side, body: compact,
-                  });
-                } catch (_) {
-                  core.warning("Inline Claude review anchor was rejected; using a general review.");
-                  await github.rest.pulls.createReview({
-                    owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
-                    event: "COMMENT", body: compact,
-                  });
-                }
-              } else {
-                await github.rest.pulls.createReview({
-                  owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
-                  event: "COMMENT", body: compact,
-                });
-              }
-            }
-            await core.summary.addRaw(report).write();
+        run: >-
+          python3 scripts/publish_claude_review.py --mode publish
+          --pr ${{ github.event.pull_request.number }}
+          --sha ${{ github.event.pull_request.head.sha }}
+          --report claude-review.md --artifact claude-review.json
 
   claude-review:
-    needs: [analyze, publish]
+    needs: [block, analyze, publish]
     if: always() && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions: {}

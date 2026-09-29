@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -33,7 +34,7 @@ class ClaudeReviewGateTests(unittest.TestCase):
         with self.assertRaises(review_gate.ReviewError):
             review_gate.normalize_review(review_payload("CHANGES_REQUESTED"))
 
-    def test_approved_review_rejects_findings(self):
+    def test_approved_review_rejects_blocking_findings(self):
         finding = {
             "id": "src-1",
             "severity": "high",
@@ -45,6 +46,32 @@ class ClaudeReviewGateTests(unittest.TestCase):
         }
         with self.assertRaises(review_gate.ReviewError):
             review_gate.normalize_review(review_payload("APPROVED", [finding]))
+
+    def test_approved_review_allows_low_notes(self):
+        finding = {
+            "id": "src-low",
+            "severity": "low",
+            "path": "src/example.py",
+            "line": 7,
+            "title": "Optional cleanup",
+            "details": "The name is less direct than it could be.",
+            "recommendation": "Consider a clearer name.",
+        }
+        review = review_gate.normalize_review(review_payload("APPROVED", [finding]))
+        self.assertEqual(review_gate.blocking_finding_count(review), 0)
+
+    def test_changes_requested_requires_blocking_finding(self):
+        finding = {
+            "id": "src-low",
+            "severity": "low",
+            "path": "src/example.py",
+            "line": None,
+            "title": "Optional cleanup",
+            "details": "This is non-blocking.",
+            "recommendation": "Consider changing it.",
+        }
+        with self.assertRaises(review_gate.ReviewError):
+            review_gate.normalize_review(review_payload("CHANGES_REQUESTED", [finding]))
 
     def test_evidence_lists_reject_blank_entries(self):
         for field in ("tests_reviewed", "residual_risks"):
@@ -108,6 +135,35 @@ class ClaudeReviewGateTests(unittest.TestCase):
         review = review_gate.normalize_review(review_payload())
         report = review_gate.render_review(review, "abc123", "Claude subscription OAuth")
         self.assertIn("Review route: `Claude subscription OAuth`", report)
+
+    def test_machine_artifact_contains_only_validated_review(self):
+        review = review_gate.normalize_review(review_payload())
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "review.json"
+            review_gate.write_review_artifact(
+                path,
+                reviewed_sha="a" * 40,
+                route="Claude subscription OAuth",
+                review=review,
+            )
+            artifact = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(artifact["schema_version"], 1)
+        self.assertEqual(artifact["status"], "OK")
+        self.assertEqual(artifact["review"], review)
+
+    def test_error_artifact_neutralizes_control_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "review.json"
+            review_gate.write_review_artifact(
+                path,
+                reviewed_sha="a" * 40,
+                route="API",
+                error="notify @team <!-- hidden -->",
+            )
+            artifact = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(artifact["status"], "ERROR")
+        self.assertNotIn("@team", artifact["error"])
+        self.assertNotIn("<!-- hidden -->", artifact["error"])
 
 if __name__ == "__main__":
     unittest.main()

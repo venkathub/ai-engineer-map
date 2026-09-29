@@ -1,8 +1,8 @@
 # Claude pull-request review gate
 
-Every non-draft pull request is reviewed at its current head commit by the `Claude PR Review` workflow. The workflow publishes a persistent audit report, maintains a separate compact resolvable review thread, and exposes the `claude-review` required check.
+Every non-draft pull request is reviewed at its current head commit by the `Claude PR Review` workflow. The workflow follows the Kaasu reviewer-daemon pattern: it opens a reviewer-owned pending thread immediately, waits for validation on the exact head, publishes one unresolved thread per blocking finding, adds a compact round comment, and exposes the `claude-review` required check.
 
-The workflow runs trusted code from the base branch through `pull_request_target`. It fetches the pull-request diff as untrusted text and never checks out or executes pull-request code with a secret present. Claude receives only read tools on the subscription route and no tools on the API route; neither route can edit files, execute PR code, push, or merge. Analysis runs with read-only GitHub permissions, its sanitized report crosses jobs as a one-day artifact, and only an isolated publisher job receives `pull-requests: write`. A tested route-decision script requires exactly one valid result. The final `claude-review` job passes only when the selected route returns `APPROVED` with zero actionable findings and report publication succeeds.
+The workflow runs trusted code from the base branch through `pull_request_target`. It fetches the pull-request diff as untrusted text and never checks out or executes pull-request code with a secret present. Claude receives only read tools on the subscription route and no tools on the API route; neither route can edit files, execute PR code, push, merge, label, or resolve threads. Analysis runs with read-only GitHub permissions. A validated machine-readable verdict and a sanitized report cross jobs as one-day artifacts; only the isolated publisher receives `issues: write` and `pull-requests: write`. A tested route-decision script requires exactly one valid result. The final `claude-review` job passes only when the selected route returns `APPROVED` with zero CRITICAL, HIGH, or MEDIUM findings and publication succeeds; LOW notes are non-blocking.
 
 ## Authentication
 
@@ -25,13 +25,16 @@ Local credentials may remain in the ignored `.env` for hands-on exercises, but t
 ## Review and merge lifecycle
 
 1. Open or update a non-draft pull request.
-2. Wait for `curriculum-and-labs` and `claude-review`.
-3. Read the persistent audit comment and its compact inline review thread. When Claude reports `CHANGES_REQUESTED`, address every listed finding ID in the branch.
-4. Push the fixes. The audit report and compact thread are updated, and Claude reviews the complete updated diff.
-5. Repeat until the current head commit is `APPROVED` with zero findings. The publisher then resolves the compact Claude thread; a later regression reopens it. For a binary/rename-only diff with no commentable line, GitHub receives a compact general PR review instead because its API cannot create a resolvable inline thread without an anchor.
-6. Resolve any human review conversations and squash-merge only while all required checks are green and the Claude thread is resolved.
+2. The pending Claude thread is created or reopened immediately. Claude waits until `curriculum-and-labs` succeeds for that same head SHA; a stale green result never starts review.
+3. Read the persistent audit comment and compact round comment. Each CRITICAL, HIGH, or MEDIUM finding has its own unresolved review thread. LOW findings appear only as non-blocking notes in the round comment.
+4. Address every blocking thread, then reply in that same thread with the fix commit and verification evidence. Do not resolve the thread; it belongs to the Claude reviewer.
+5. Push the fixes. Approval is revoked and the pending thread is reopened before validation or review of the new head begins.
+6. Repeat until the current head commit is `APPROVED` with no blocking findings. The publisher then resolves the pending thread and all Claude-owned finding threads and applies `claude:approved`; LOW notes may remain in the round summary. After two unsuccessful rounds it applies `needs-human`; a maintainer must inspect the remaining findings and explicitly restart review.
+7. Resolve any separate human review conversations and squash-merge only while all required checks are green and every blocking conversation is resolved.
 
-A stale Claude result cannot approve a newer commit because each push starts a new check, cancels the obsolete run, and records the exact reviewed SHA in the report. Authentication errors, malformed output, model failures, or missing credentials fail closed.
+GitHub requires an inline diff anchor to create a resolvable conversation. For binary, rename-only, or otherwise unanchorable changes, the publisher falls back to a general PR review while the required `claude-review` check remains the fail-closed merge gate.
+
+A stale Claude result cannot approve a newer commit because each push first removes `claude:approved`, reopens the pending thread, starts a new check, cancels the obsolete run, and records the exact reviewed SHA in both artifacts. Authentication errors, malformed output, publication failures, model failures, missing credentials, or non-green exact-head validation fail closed.
 
 ## Maintainer operations
 

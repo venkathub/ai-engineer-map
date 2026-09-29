@@ -30,6 +30,7 @@ The application deliberately has no JavaScript build step and no runtime depende
 6. Update `reviewedAt` only when the affected current claims and references were actually reviewed.
 7. Run `./run.sh check` before handing off changes.
 8. For UI changes, serve with `./run.sh` and inspect desktop and mobile layouts, keyboard focus, and reduced-motion behavior.
+9. On a Claude-reviewed pull request, address every open blocking finding and reply in its thread with the changed commit and verification evidence. Implementers must not resolve Claude-owned threads or apply approval labels; only the reviewer publisher does that.
 
 ## Curriculum contract
 

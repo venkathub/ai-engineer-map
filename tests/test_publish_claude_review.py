@@ -1,0 +1,50 @@
+import importlib.util
+import unittest
+from pathlib import Path
+
+
+MODULE_PATH = Path(__file__).parents[1] / "scripts" / "publish_claude_review.py"
+SPEC = importlib.util.spec_from_file_location("publish_claude_review", MODULE_PATH)
+publisher = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(publisher)
+
+
+class PublishClaudeReviewTests(unittest.TestCase):
+    def test_model_text_is_inert(self):
+        rendered = publisher.inert("@team <!-- hidden --> [x](https://bad.test) `code`")
+        self.assertNotIn("@team", rendered)
+        self.assertNotIn("<!-- hidden -->", rendered)
+        self.assertNotIn("https://", rendered)
+        self.assertNotIn("[x]", rendered)
+
+    def test_paths_reject_traversal_and_controls(self):
+        self.assertTrue(publisher.safe_path("scripts/check.py"))
+        for path in ("../secret", "/root/secret", "a\\b", "bad\npath", "a/../b", ""):
+            self.assertFalse(publisher.safe_path(path))
+
+    def test_diff_parser_prefers_added_line_anchor(self):
+        files = [
+            {
+                "filename": "src/app.py",
+                "patch": "@@ -2,2 +2,3 @@\n old\n+new\n tail",
+            }
+        ]
+        right, left, anchor = publisher.diff_anchors(files)
+        self.assertIn(3, right["src/app.py"])
+        self.assertIn(2, left["src/app.py"])
+        self.assertEqual(anchor, {"path": "src/app.py", "line": 3, "side": "RIGHT"})
+
+    def test_finding_marker_is_stable_but_sha_scoped(self):
+        finding = {"id": "stable-id"}
+        first = publisher.finding_marker(finding, "a" * 40)
+        self.assertEqual(first, publisher.finding_marker(finding, "a" * 40))
+        self.assertNotEqual(first, publisher.finding_marker(finding, "b" * 40))
+        self.assertNotIn("stable-id", first)
+
+    def test_blocking_severities_match_kaasu_policy(self):
+        self.assertEqual(publisher.BLOCKING, {"critical", "high", "medium"})
+
+
+if __name__ == "__main__":
+    unittest.main()

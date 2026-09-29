@@ -15,9 +15,11 @@ from typing import Any
 
 from claude_review_gate import (
     ReviewError,
+    blocking_finding_count,
     normalize_review,
     render_review,
     render_unavailable,
+    write_review_artifact,
     write_outputs,
 )
 
@@ -179,8 +181,9 @@ contracts, and unsafe cost or external-resource behavior.
 
 A finding is actionable only when this pull-request author can fix it. Put pre-existing
 problems and optional improvements in residual_risks. Use a stable finding ID derived
-from path, line, and title. Return APPROVED only when findings is empty; otherwise return
-CHANGES_REQUESTED. Do not claim tests were executed; tests_reviewed names evidence visible
+from path, line, and title. Return APPROVED when there are no critical, high, or medium
+findings; LOW notes may accompany approval. Otherwise return CHANGES_REQUESTED. Do not claim
+tests were executed; tests_reviewed names evidence visible
 in the diff or repository rules.
 
 <trusted_repository_rules>
@@ -263,6 +266,7 @@ def load_rules() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--json-output", type=Path)
     parser.add_argument("--diff-file", type=Path)
     parser.add_argument("--reviewed-sha")
     parser.add_argument("--verify-model-only", action="store_true")
@@ -305,7 +309,13 @@ def main() -> int:
         review = normalize_review(raw_review)
         approved = review["verdict"] == "APPROVED"
         report = render_review(review, reviewed_sha, "Anthropic API fallback")
-        write_outputs(approved, review["verdict"], len(review["findings"]))
+        write_review_artifact(
+            args.json_output,
+            reviewed_sha=reviewed_sha,
+            route="Anthropic API fallback",
+            review=review,
+        )
+        write_outputs(approved, review["verdict"], blocking_finding_count(review))
         input_tokens = usage.get("input_tokens", "unknown")
         output_tokens = usage.get("output_tokens", "unknown")
         print(
@@ -314,6 +324,12 @@ def main() -> int:
         )
     except (OSError, ValueError, ReviewError) as exc:
         report = render_unavailable(str(exc), reviewed_sha)
+        write_review_artifact(
+            args.json_output,
+            reviewed_sha=reviewed_sha,
+            route="Anthropic API fallback",
+            error=str(exc),
+        )
         write_outputs(False, "ERROR", 0)
         print(f"Claude review unavailable: {exc}")
 

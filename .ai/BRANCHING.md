@@ -68,4 +68,4 @@ Titles use the same Conventional Commit format. Complete every section of `.gith
 
 Prefer squash merge. The squash commit title must preserve the PR's Conventional Commit title.
 
-Every non-draft PR must also follow [`docs/CLAUDE_PR_REVIEW.md`](../docs/CLAUDE_PR_REVIEW.md). Address every actionable Claude finding, push the fix, and wait for Claude to approve the new head commit with zero findings before merging. A prior approval never applies to a newer commit.
+Every non-draft PR must also follow [`docs/CLAUDE_PR_REVIEW.md`](../docs/CLAUDE_PR_REVIEW.md). Address every blocking Claude finding, reply in each finding thread with the fix commit and verification evidence, push the fix, and wait for Claude to approve the new head commit with no CRITICAL, HIGH, or MEDIUM findings before merging. Do not resolve Claude-owned threads or apply Claude gate labels as an implementer. LOW notes are non-blocking, and a prior approval never applies to a newer commit.

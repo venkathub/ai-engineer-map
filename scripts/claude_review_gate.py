@@ -13,8 +13,10 @@ from typing import Any
 MARKER = "<!-- claude-pr-review -->"
 VERDICTS = {"APPROVED", "CHANGES_REQUESTED"}
 SEVERITIES = {"critical", "high", "medium", "low"}
+BLOCKING_SEVERITIES = {"critical", "high", "medium"}
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 MAX_FINDINGS = 100
+ARTIFACT_SCHEMA_VERSION = 1
 
 
 class ReviewError(ValueError):
@@ -130,10 +132,13 @@ def normalize_review(raw: str) -> dict[str, Any]:
     if any(not item.strip() for item in residual_risks):
         raise ReviewError("residual_risks entries must be non-empty strings")
 
-    if verdict == "APPROVED" and normalized_findings:
-        raise ReviewError("APPROVED is inconsistent with non-empty findings")
-    if verdict == "CHANGES_REQUESTED" and not normalized_findings:
-        raise ReviewError("CHANGES_REQUESTED requires at least one finding")
+    blocking = [
+        finding for finding in normalized_findings if finding["severity"] in BLOCKING_SEVERITIES
+    ]
+    if verdict == "APPROVED" and blocking:
+        raise ReviewError("APPROVED is inconsistent with blocking findings")
+    if verdict == "CHANGES_REQUESTED" and not blocking:
+        raise ReviewError("CHANGES_REQUESTED requires at least one blocking finding")
 
     return {
         "verdict": verdict,
@@ -193,7 +198,7 @@ def render_review(review: dict[str, Any], reviewed_sha: str, route: str = "") ->
         [
             "",
             "This report is replaced on every pushed revision. The required check passes only "
-            "when the current commit is approved with zero actionable findings.",
+            "when the current commit is approved with zero blocking findings.",
         ]
     )
     return "\n".join(lines)[:60_000] + "\n"
@@ -225,9 +230,39 @@ def write_outputs(approved: bool, verdict: str, finding_count: int) -> None:
         output.write(f"finding_count={finding_count}\n")
 
 
+def blocking_finding_count(review: dict[str, Any]) -> int:
+    return sum(
+        1 for finding in review["findings"] if finding["severity"] in BLOCKING_SEVERITIES
+    )
+
+
+def write_review_artifact(
+    path: Path | None,
+    *,
+    reviewed_sha: str,
+    route: str,
+    review: dict[str, Any] | None = None,
+    error: str = "",
+) -> None:
+    """Write the validated machine-readable handoff consumed by the publisher job."""
+    if path is None:
+        return
+    payload: dict[str, Any] = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "reviewed_sha": reviewed_sha,
+        "route": route,
+    }
+    if review is None:
+        payload.update({"status": "ERROR", "error": _plain_text(error)[:2_000]})
+    else:
+        payload.update({"status": "OK", "review": review})
+    path.write_text(json.dumps(payload, ensure_ascii=True, separators=(",", ":")), encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--json-output", type=Path)
     args = parser.parse_args()
 
     reviewed_sha = os.environ.get("REVIEWED_SHA", "")
@@ -241,9 +276,21 @@ def main() -> int:
         review = validate_subscription_result(auth_configured, action_outcome, raw_review)
         approved = review["verdict"] == "APPROVED"
         report = render_review(review, reviewed_sha, review_route)
-        write_outputs(approved, review["verdict"], len(review["findings"]))
+        write_review_artifact(
+            args.json_output,
+            reviewed_sha=reviewed_sha,
+            route=review_route,
+            review=review,
+        )
+        write_outputs(approved, review["verdict"], blocking_finding_count(review))
     except ReviewError as exc:
         report = render_unavailable(str(exc), reviewed_sha)
+        write_review_artifact(
+            args.json_output,
+            reviewed_sha=reviewed_sha,
+            route=review_route,
+            error=str(exc),
+        )
         write_outputs(False, "ERROR", 0)
 
     args.output.write_text(report, encoding="utf-8")
