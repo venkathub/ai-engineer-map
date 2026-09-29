@@ -2,30 +2,19 @@
 
 Every non-draft pull request is reviewed at its current head commit by the `Claude PR Review` workflow. The workflow publishes one persistent report on the pull request and exposes the `claude-review` required check.
 
-Claude receives read-only tools (`Read`, `Glob`, and `Grep`). It cannot edit files, execute pull-request code, push commits, merge, or reveal full model output in the Actions log. A deterministic repository script validates its structured result. The check passes only when Claude returns `APPROVED` with zero actionable findings.
+The workflow runs trusted code from the base branch through `pull_request_target`. It fetches the pull-request diff as untrusted text through GitHub's API and sends that text to Anthropic's Messages API. It never checks out or executes pull-request code with a secret present. Claude receives no tools and cannot edit files, execute code, push commits, or merge. A deterministic repository script validates its schema-constrained result. The check passes only when Claude returns `APPROVED` with zero actionable findings.
 
-## Authentication: choose one
+## Authentication
 
-Configure exactly one GitHub Actions repository secret:
-
-### Anthropic API billing
+Configure the Anthropic API key as an encrypted GitHub Actions repository secret:
 
 ```bash
 gh secret set ANTHROPIC_API_KEY
 ```
 
-Paste an Anthropic Console API key at the hidden prompt. API usage is billed by Anthropic separately from a Claude web subscription.
+Paste an Anthropic Console API key at the hidden prompt. API usage is billed by Anthropic separately from a Claude web subscription. The review defaults to `claude-sonnet-5`, which supports structured outputs. Override it without changing the workflow by setting the non-secret Actions variable `CLAUDE_REVIEW_MODEL` to another compatible model.
 
-### Claude Pro or Max subscription
-
-Install Claude Code locally, authenticate the intended Pro or Max account, and generate the long-lived automation token supported by Claude Code:
-
-```bash
-claude setup-token
-gh secret set CLAUDE_CODE_OAUTH_TOKEN
-```
-
-Paste the generated token at the hidden `gh` prompt. Never put the automation token in `.env`, workflow YAML, pull-request text, logs, or repository variables. A local Anthropic API key may remain in the ignored `.env` for hands-on exercises, but the workflow reads its own encrypted Actions secret. Rotate the selected credential according to the provider's policy.
+A local Anthropic API key may remain in the ignored `.env` for hands-on exercises, but the workflow reads its own encrypted Actions secret. Never place the key in workflow YAML, pull-request text, logs, or repository variables. Rotate it according to the provider's policy.
 
 ## Review and merge lifecycle
 
@@ -48,17 +37,18 @@ gh pr checks PR_NUMBER
 gh pr view PR_NUMBER --comments
 ```
 
-To switch authentication methods, add the replacement secret, verify a review, and then remove the old secret:
+Rotate the authentication secret with:
 
 ```bash
-gh secret delete ANTHROPIC_API_KEY
-# or: gh secret delete CLAUDE_CODE_OAUTH_TOKEN
+gh secret set ANTHROPIC_API_KEY
 ```
 
-The action is pinned to an immutable commit. Update it only after reviewing the official action release and rerunning this gate on its own pull request.
+The workflow deliberately does not use or execute code from the pull-request head. Do not change the trusted-base checkout to the head SHA and do not run downloaded PR artifacts in this privileged workflow.
+
+For public repositories, ensure the repository or organization Actions policy explicitly permits `pull_request_target`. GitHub has announced enforcement of its default blocking policy for that event beginning November 2, 2026; the review gate must fail closed rather than silently bypass review if policy blocks the workflow.
 
 ## Official references
 
-- [Claude Code Action setup](https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md)
-- [Claude Code Action configuration](https://github.com/anthropics/claude-code-action/blob/main/docs/configuration.md)
-- [Claude Code Action security guidance](https://github.com/anthropics/claude-code-action/blob/main/base-action/README.md)
+- [Anthropic Messages API](https://platform.claude.com/docs/en/api/http/messages)
+- [Anthropic structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+- [GitHub guidance for secure `pull_request_target` use](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)

@@ -6,14 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
 
 MARKER = "<!-- claude-pr-review -->"
 VERDICTS = {"APPROVED", "CHANGES_REQUESTED"}
 SEVERITIES = {"critical", "high", "medium", "low"}
-SAFE_CODE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
 
 
 class ReviewError(ValueError):
@@ -90,50 +88,6 @@ def normalize_review(raw: str) -> dict[str, Any]:
         "tests_reviewed": [item.strip() for item in tests_reviewed if item.strip()],
         "residual_risks": [item.strip() for item in residual_risks if item.strip()],
     }
-
-
-def _objects(value: Any):
-    if isinstance(value, dict):
-        yield value
-        for child in value.values():
-            yield from _objects(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from _objects(child)
-
-
-def safe_failure_diagnostic(execution_file: str) -> str:
-    """Extract only non-sensitive error codes from Claude's private execution record."""
-    if not execution_file:
-        return "Claude Code Action failed before returning a structured review."
-    path = Path(execution_file)
-    if not path.is_file():
-        return "Claude Code Action failed before returning a structured review."
-
-    try:
-        raw = path.read_text(encoding="utf-8")
-        try:
-            documents = [json.loads(raw)]
-        except json.JSONDecodeError:
-            documents = [json.loads(line) for line in raw.splitlines() if line.strip()]
-    except (OSError, json.JSONDecodeError):
-        return "Claude Code Action failed; its execution record could not be safely classified."
-
-    failures = [item for document in documents for item in _objects(document) if item.get("is_error") is True]
-    if not failures:
-        return "Claude Code Action failed before returning a structured review."
-
-    failure = failures[-1]
-    status = failure.get("api_error_status", failure.get("error_status"))
-    parts = []
-    if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
-        parts.append(f"HTTP {status}")
-    for label, key in (("category", "error"), ("reason", "terminal_reason")):
-        value = failure.get(key)
-        if isinstance(value, str) and SAFE_CODE.fullmatch(value):
-            parts.append(f"{label} {value}")
-    detail = "; ".join(parts) if parts else "no safe provider status was available"
-    return f"Claude Code Action failed before review ({detail})."
 
 
 def render_review(review: dict[str, Any], reviewed_sha: str) -> str:
@@ -221,7 +175,6 @@ def main() -> int:
     reviewed_sha = os.environ.get("REVIEWED_SHA", "")
     auth_configured = os.environ.get("CLAUDE_AUTH_CONFIGURED") == "true"
     action_outcome = os.environ.get("CLAUDE_ACTION_OUTCOME", "skipped")
-    execution_file = os.environ.get("CLAUDE_EXECUTION_FILE", "")
     raw_review = os.environ.get("CLAUDE_REVIEW_JSON", "")
 
     try:
@@ -231,7 +184,7 @@ def main() -> int:
                 "CLAUDE_CODE_OAUTH_TOKEN for a supported Claude Pro/Max subscription."
             )
         if action_outcome != "success":
-            raise ReviewError(safe_failure_diagnostic(execution_file))
+            raise ReviewError(f"Claude Code Action outcome was {action_outcome!r}")
         review = normalize_review(raw_review)
         approved = review["verdict"] == "APPROVED"
         report = render_review(review, reviewed_sha)
