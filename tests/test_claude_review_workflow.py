@@ -36,12 +36,11 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("was not queued", analyze)
         self.assertNotIn("startup_failure|stale", analyze)
 
-    def test_default_model_has_bootstrap_verification_evidence(self):
+    def test_default_model_uses_dated_id_and_runtime_verification(self):
         docs = (ROOT / "docs" / "CLAUDE_PR_REVIEW.md").read_text(encoding="utf-8")
-        self.assertIn("Pre-merge verification record", docs)
-        self.assertIn("id: claude-sonnet-5", docs)
-        self.assertIn("type: model", docs)
-        self.assertIn("f6790f6b24e387a4b9f80211c39677cf8aa0b3f0", docs)
+        self.assertIn("claude-sonnet-4-5-20250929", docs)
+        self.assertIn("runtime model check is the source of truth", docs)
+        self.assertIn("No static pre-merge verification timestamp", docs)
 
     def test_oauth_detection_never_prints_the_secret(self):
         detection = self.workflow.split("      - name: Detect subscription authentication", 1)[

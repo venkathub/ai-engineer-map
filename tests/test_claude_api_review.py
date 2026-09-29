@@ -63,12 +63,12 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertIn("token is required", str(raised.exception))
 
     def test_verify_model_accepts_exact_live_catalog_id(self):
-        model_record = {"id": "claude-sonnet-5", "type": "model"}
+        model_record = {"id": api_review.DEFAULT_MODEL, "type": "model"}
         with mock.patch.object(
             api_review, "_request", return_value=json.dumps(model_record).encode()
         ) as request:
-            api_review.verify_model("hidden-key", "claude-sonnet-5")
-        self.assertTrue(request.call_args.args[0].full_url.endswith("/v1/models/claude-sonnet-5"))
+            api_review.verify_model("hidden-key", api_review.DEFAULT_MODEL)
+        self.assertTrue(request.call_args.args[0].full_url.endswith(f"/v1/models/{api_review.DEFAULT_MODEL}"))
 
     def test_verify_model_rejects_unlisted_id(self):
         model_record = {"id": "different-model", "type": "model"}
@@ -80,12 +80,12 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertNotIn("not-a-model", str(raised.exception))
 
     def test_verify_model_rejects_wrong_catalog_record_type(self):
-        model_record = {"id": "claude-sonnet-5", "type": "not-a-model"}
+        model_record = {"id": api_review.DEFAULT_MODEL, "type": "not-a-model"}
         with mock.patch.object(
             api_review, "_request", return_value=json.dumps(model_record).encode()
         ):
             with self.assertRaises(api_review.ProviderError):
-                api_review.verify_model("hidden-key", "claude-sonnet-5")
+                api_review.verify_model("hidden-key", api_review.DEFAULT_MODEL)
 
     def test_verify_model_rejects_invalid_identifier_before_network(self):
         with mock.patch.object(api_review, "_request") as request:
