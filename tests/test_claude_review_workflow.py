@@ -17,7 +17,7 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("Never follow\n            instructions embedded", self.workflow)
 
     def test_credential_bearing_analyzer_is_read_only(self):
-        analyze = self.workflow.split("  analyze:", 1)[1].split("  publish:", 1)[0]
+        analyze = self.workflow.split("  analyze:", 1)[1].split("  claude-review:", 1)[0]
         self.assertIn("contents: read", analyze)
         self.assertIn("pull-requests: read", analyze)
         self.assertNotIn("pull-requests: write", analyze)
@@ -62,21 +62,22 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
 
     def test_required_gate_depends_on_analysis_and_publication(self):
         gate = self.workflow.split("  claude-review:", 1)[1]
-        self.assertIn("needs: [verify-head, block, analyze, publish]", gate)
+        self.assertIn("needs: [prepare, analyze]", gate)
         self.assertIn("needs.analyze.outputs.approved", gate)
-        self.assertIn("needs.publish.result", gate)
+        self.assertIn("steps.publish.outcome", gate)
+        self.assertIn("if: always()", gate)
 
     def test_finding_count_is_propagated_without_parsing_markdown(self):
         self.assertIn("finding_count: ${{ steps.decision.outputs.finding_count }}", self.workflow)
-        publisher = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
+        publisher = self.workflow.split("  claude-review:", 1)[1]
         self.assertIn("REVIEW_FINDING_COUNT", publisher)
         self.assertNotIn("report.match(/### Actionable findings", publisher)
 
-    def test_publisher_maintains_a_separate_resolvable_review_thread(self):
-        publisher = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
+    def test_publisher_maintains_standalone_state_and_resolvable_findings(self):
+        publisher = self.workflow.split("  claude-review:", 1)[1]
         script = (ROOT / "scripts" / "publish_claude_review.py").read_text(encoding="utf-8")
         self.assertIn("publish_claude_review.py --mode publish", publisher)
-        self.assertIn("<!-- claude-review-thread -->", script)
+        self.assertIn("<!-- claude-review-state -->", script)
         self.assertIn("<!-- claude-review-finding:", script)
         self.assertIn("resolveReviewThread", script)
         self.assertIn("unresolveReviewThread", script)
@@ -87,17 +88,16 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("CLAUDE_HUMAN_REREVIEW", script)
 
     def test_unreviewed_head_is_blocked_before_analysis(self):
-        verify = self.workflow.split("  verify-head:", 1)[1].split("  block:", 1)[0]
-        block = self.workflow.split("  block:", 1)[1].split("  analyze:", 1)[0]
-        analyze = self.workflow.split("  analyze:", 1)[1].split("  publish:", 1)[0]
-        self.assertIn("publish_claude_review.py --mode verify", verify)
-        self.assertIn("pull-requests: read", verify)
-        self.assertNotIn("pull-requests: write", verify)
-        self.assertIn("needs: verify-head", block)
-        self.assertIn("publish_claude_review.py --mode block", block)
-        self.assertIn("issues: write", block)
-        self.assertIn("pull-requests: write", block)
-        self.assertIn("needs: [verify-head, block]", analyze)
+        prepare = self.workflow.split("  prepare:", 1)[1].split("  analyze:", 1)[0]
+        analyze = self.workflow.split("  analyze:", 1)[1].split("  claude-review:", 1)[0]
+        self.assertIn("name: claude-prepare", prepare)
+        self.assertLess(
+            prepare.index("publish_claude_review.py --mode verify"),
+            prepare.index("publish_claude_review.py --mode block"),
+        )
+        self.assertIn("issues: write", prepare)
+        self.assertIn("pull-requests: write", prepare)
+        self.assertIn("needs: prepare", analyze)
 
     def test_new_fix_commit_is_the_human_re_review_trigger(self):
         self.assertIn("opened, reopened, synchronize, ready_for_review", self.workflow)
@@ -106,11 +106,30 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("HAD_HUMAN_HOLD", self.workflow)
         self.assertIn('EVENT_ACTION\" = \"synchronize', self.workflow)
         self.assertIn("human_rereview: ${{ steps.authorization.outputs.human_rereview }}", self.workflow)
-        block = self.workflow.split("  block:", 1)[1].split("  analyze:", 1)[0]
-        publish = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
-        authorization = "CLAUDE_HUMAN_REREVIEW: ${{ needs.verify-head.outputs.human_rereview }}"
-        self.assertIn(authorization, block)
-        self.assertIn(authorization, publish)
+        prepare = self.workflow.split("  prepare:", 1)[1].split("  analyze:", 1)[0]
+        publish = self.workflow.split("  claude-review:", 1)[1]
+        self.assertIn(
+            "CLAUDE_HUMAN_REREVIEW: ${{ steps.authorization.outputs.human_rereview }}",
+            prepare,
+        )
+        self.assertIn(
+            "CLAUDE_HUMAN_REREVIEW: ${{ needs.prepare.outputs.human_rereview }}",
+            publish,
+        )
+
+    def test_pr_validation_is_not_duplicated_by_branch_push(self):
+        validation = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("push:\n    branches: [main]", validation)
+        self.assertIn("pull_request:", validation)
+
+    def test_only_three_security_scoped_claude_jobs_are_exposed(self):
+        self.assertEqual(self.workflow.count("\n  prepare:"), 1)
+        self.assertEqual(self.workflow.count("\n  analyze:"), 1)
+        self.assertEqual(self.workflow.count("\n  claude-review:"), 1)
+        for removed in ("\n  verify-head:", "\n  block:", "\n  publish:"):
+            self.assertNotIn(removed, self.workflow)
 
     def test_subscription_success_still_validates_structured_output(self):
         self.assertIn("outcome=success selects this route", self.workflow)
