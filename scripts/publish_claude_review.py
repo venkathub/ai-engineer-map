@@ -381,13 +381,13 @@ def finding_anchor(
     return fallback
 
 
-def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[str, Any] | None]:
-    """Return a stable round for this SHA using explicit markers, not comment ordering."""
+def review_round(records_source: list[dict[str, Any]], sha: str) -> tuple[int, dict[str, Any] | None]:
+    """Return a stable round from legacy comments and native review records."""
     records: list[tuple[dict[str, Any], str, int | None]] = []
-    for comment in comments:
-        match = ROUND_RE.search(comment.get("body") or "")
+    for record in records_source:
+        match = ROUND_RE.search(record.get("body") or "")
         if match:
-            records.append((comment, match.group(1), int(match.group(2)) if match.group(2) else None))
+            records.append((record, match.group(1), int(match.group(2)) if match.group(2) else None))
     same = next((record for record in records if record[1] == sha), None)
     explicit_max = max((record[2] or 0 for record in records), default=0)
     if same:
@@ -400,10 +400,17 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
     return max(explicit_max, legacy_round) + 1, None
 
 
-def ensure_native_round_review(client: GitHub, pr: int, sha: str, body: str) -> None:
+def ensure_native_round_review(
+    client: GitHub,
+    pr: int,
+    sha: str,
+    body: str,
+    reviews: list[dict[str, Any]] | None = None,
+) -> None:
     """Expose each exact-head verdict once; API failures propagate and fail the gate."""
     marker = f"{ROUND_MARKER}{sha}:"
-    reviews = list_pages(client, f"/pulls/{pr}/reviews")
+    if reviews is None:
+        reviews = list_pages(client, f"/pulls/{pr}/reviews")
     if any(marker in (review.get("body") or "") for review in reviews):
         return
     # Do not catch this mutation: visibility is part of successful publication.
@@ -467,7 +474,11 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         return
     assert review is not None
 
-    round_number, same_round = review_round(issue_comments, args.sha)
+    # Legacy versions also posted this marker as an issue comment. Read both
+    # locations so round numbers remain monotonic without publishing the same
+    # summary twice in the Conversation timeline.
+    native_reviews = list_pages(client, f"/pulls/{args.pr}/reviews")
+    round_number, _ = review_round([*issue_comments, *native_reviews], args.sha)
     counts = {severity: 0 for severity in ("critical", "high", "medium", "low")}
     for finding in findings:
         severity = finding.get("severity")
@@ -499,13 +510,8 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
                 ]
             )
     body = "\n".join(summary)[:60_000]
-    require_publish_authorization(client, args.pr, forced_human_review, "round summary mutation")
-    if same_round:
-        client.rest("PATCH", f"/issues/comments/{same_round['id']}", {"body": body})
-    else:
-        client.rest("POST", f"/issues/{args.pr}/comments", {"body": body})
     require_publish_authorization(client, args.pr, forced_human_review, "native review mutation")
-    ensure_native_round_review(client, args.pr, args.sha, body)
+    ensure_native_round_review(client, args.pr, args.sha, body, native_reviews)
 
     right, _left, fallback, anchors_truncated = diff_anchors(files)
     if anchors_truncated:

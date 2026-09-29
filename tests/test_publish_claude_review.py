@@ -167,6 +167,19 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertEqual(publisher.review_round(comments, sha_b)[1]["id"], 101)
         self.assertEqual(publisher.review_round(comments, sha_c), (3, None))
 
+    def test_round_discovery_combines_legacy_comments_and_native_reviews(self):
+        legacy_comment = {
+            "id": 100,
+            "body": f"{publisher.ROUND_MARKER}{'a' * 40}:r1 -->",
+        }
+        native_review = {
+            "id": 200,
+            "body": f"{publisher.ROUND_MARKER}{'b' * 40}:r2 -->",
+        }
+        records = [legacy_comment, native_review]
+        self.assertEqual(publisher.review_round(records, "b" * 40), (2, native_review))
+        self.assertEqual(publisher.review_round(records, "c" * 40), (3, None))
+
     def test_native_round_review_is_visible_once_per_exact_head(self):
         class Client:
             def __init__(self, existing=None):
@@ -212,6 +225,25 @@ class PublishClaudeReviewTests(unittest.TestCase):
             publisher.ensure_native_round_review(client, 4, sha, body)
         publisher.ensure_native_round_review(client, 4, sha, body)
         self.assertEqual(client.post_attempts, 2)
+
+    def test_preloaded_native_reviews_avoid_duplicate_query_and_publication(self):
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                return {}
+
+        sha = "a" * 40
+        body = f"{publisher.ROUND_MARKER}{sha}:r1 -->\nAPPROVED"
+        client = Client()
+        publisher.ensure_native_round_review(client, 4, sha, body, [{"body": body}])
+        self.assertEqual(client.calls, [])
+
+        publisher.ensure_native_round_review(client, 4, sha, body, [])
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual(client.calls[0][0:2], ("POST", "/pulls/4/reviews"))
 
     def test_thread_inventory_fails_closed_when_graphql_is_truncated(self):
         class Client:
