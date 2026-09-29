@@ -37,6 +37,14 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.analyze.outputs.approved", gate)
         self.assertIn("needs.publish.result", gate)
 
+    def test_publisher_maintains_a_separate_resolvable_review_thread(self):
+        publisher = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
+        self.assertIn("<!-- claude-review-thread -->", publisher)
+        self.assertIn("createReviewComment", publisher)
+        self.assertIn("resolveReviewThread", publisher)
+        self.assertIn("unresolveReviewThread", publisher)
+        self.assertIn("This thread remains unresolved", publisher)
+
 
 if __name__ == "__main__":
     unittest.main()

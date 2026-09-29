@@ -127,16 +127,126 @@ jobs:
 
       - name: Publish current Claude review
         env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          comment_id="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --jq '.[] | select(.body | contains("<!-- claude-pr-review -->")) | .id' | tail -n 1)"
-          if [ -n "$comment_id" ]; then
-            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --method PATCH -F body=@claude-review.md >/dev/null
-          else
-            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --method POST -F body=@claude-review.md >/dev/null
-          fi
-          cat claude-review.md >> "$GITHUB_STEP_SUMMARY"
+          REVIEW_APPROVED: ${{ needs.analyze.outputs.approved }}
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require("fs");
+            const report = fs.readFileSync("claude-review.md", "utf8");
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.issue.number;
+            const auditMarker = "<!-- claude-pr-review -->";
+            const threadMarker = "<!-- claude-review-thread -->";
+            const approved = process.env.REVIEW_APPROVED === "true";
+
+            const issueComments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pull_number, per_page: 100,
+            });
+            const previousAudit = issueComments.find((comment) =>
+              comment.body && comment.body.includes(auditMarker));
+            const audit = previousAudit
+              ? await github.rest.issues.updateComment({
+                  owner, repo, comment_id: previousAudit.id, body: report,
+                })
+              : await github.rest.issues.createComment({
+                  owner, repo, issue_number: pull_number, body: report,
+                });
+
+            const findingMatch = report.match(/### Actionable findings \((\d+)\)/);
+            const findingCount = findingMatch ? Number(findingMatch[1]) : 0;
+            const auditUrl = audit.data.html_url;
+            const compact = [
+              threadMarker,
+              approved ? "### ✅ Claude approved" : "### ❌ Claude changes requested",
+              "",
+              `Commit \`${process.env.REVIEWED_SHA.slice(0, 12)}\`: ${findingCount} actionable finding(s).`,
+              `[Open the complete sanitized audit report](${auditUrl}).`,
+              "",
+              approved
+                ? "Claude approved this exact revision; this review thread is now resolved."
+                : "This thread remains unresolved until Claude approves a later exact revision.",
+            ].join("\n");
+
+            const reviewComments = await github.paginate(github.rest.pulls.listReviewComments, {
+              owner, repo, pull_number, per_page: 100,
+            });
+            const previousThreadComment = reviewComments.find((comment) =>
+              comment.body && comment.body.includes(threadMarker));
+            const threadData = await github.graphql(`
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    reviewThreads(first: 100) {
+                      nodes {
+                        id
+                        isResolved
+                        comments(first: 100) { nodes { databaseId body } }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { owner, repo, number: pull_number });
+            const threads = threadData.repository.pullRequest.reviewThreads.nodes;
+            const thread = threads.find((candidate) => candidate.comments.nodes.some((comment) =>
+              (previousThreadComment && comment.databaseId === previousThreadComment.id) ||
+              (comment.body && comment.body.includes(threadMarker))));
+
+            if (approved) {
+              if (previousThreadComment) {
+                await github.rest.pulls.updateReviewComment({
+                  owner, repo, comment_id: previousThreadComment.id, body: compact,
+                });
+              }
+              if (thread && !thread.isResolved) {
+                await github.graphql(`
+                  mutation($threadId: ID!) {
+                    resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
+                  }
+                `, { threadId: thread.id });
+              }
+            } else if (previousThreadComment) {
+              await github.rest.pulls.updateReviewComment({
+                owner, repo, comment_id: previousThreadComment.id, body: compact,
+              });
+              if (thread && thread.isResolved) {
+                await github.graphql(`
+                  mutation($threadId: ID!) {
+                    unresolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
+                  }
+                `, { threadId: thread.id });
+              }
+            } else {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner, repo, pull_number, per_page: 100,
+              });
+              let anchor = null;
+              for (const file of files) {
+                if (!file.patch) continue;
+                let newLine = 0;
+                for (const line of file.patch.split("\n")) {
+                  const header = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+                  if (header) {
+                    newLine = Number(header[1]);
+                  } else if (line.startsWith("+") && !line.startsWith("+++")) {
+                    anchor = { path: file.filename, line: newLine };
+                    break;
+                  } else if (!line.startsWith("-")) {
+                    newLine += 1;
+                  }
+                }
+                if (anchor) break;
+              }
+              if (!anchor) throw new Error("No added diff line is available for the Claude thread");
+              await github.rest.pulls.createReviewComment({
+                owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
+                path: anchor.path, line: anchor.line, side: "RIGHT", body: compact,
+              });
+            }
+            await core.summary.addRaw(report).write();
 
   claude-review:
     needs: [analyze, publish]

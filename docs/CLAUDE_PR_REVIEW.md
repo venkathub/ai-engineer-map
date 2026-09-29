@@ -1,6 +1,6 @@
 # Claude pull-request review gate
 
-Every non-draft pull request is reviewed at its current head commit by the `Claude PR Review` workflow. The workflow publishes one persistent report on the pull request and exposes the `claude-review` required check.
+Every non-draft pull request is reviewed at its current head commit by the `Claude PR Review` workflow. The workflow publishes a persistent audit report, maintains a separate compact resolvable review thread, and exposes the `claude-review` required check.
 
 The workflow runs trusted code from the base branch through `pull_request_target`. It fetches the pull-request diff as untrusted text and never checks out or executes pull-request code with a secret present. Claude receives only read tools on the subscription route and no tools on the API route; neither route can edit files, execute PR code, push, or merge. Analysis runs with read-only GitHub permissions, its sanitized report crosses jobs as a one-day artifact, and only an isolated publisher job receives `pull-requests: write`. A tested route-decision script requires exactly one valid result. The final `claude-review` job passes only when the selected route returns `APPROVED` with zero actionable findings and report publication succeeds.
 
@@ -26,10 +26,10 @@ Local credentials may remain in the ignored `.env` for hands-on exercises, but t
 
 1. Open or update a non-draft pull request.
 2. Wait for `curriculum-and-labs` and `claude-review`.
-3. When Claude reports `CHANGES_REQUESTED`, address every listed finding ID in the branch.
-4. Push the fixes. The previous report is replaced, and Claude reviews the complete updated diff.
-5. Repeat until the current head commit is `APPROVED` with zero findings.
-6. Resolve any human review conversations and squash-merge only while all required checks are green.
+3. Read the persistent audit comment and its compact inline review thread. When Claude reports `CHANGES_REQUESTED`, address every listed finding ID in the branch.
+4. Push the fixes. The audit report and compact thread are updated, and Claude reviews the complete updated diff.
+5. Repeat until the current head commit is `APPROVED` with zero findings. The publisher then resolves the compact Claude thread; a later regression reopens it.
+6. Resolve any human review conversations and squash-merge only while all required checks are green and the Claude thread is resolved.
 
 A stale Claude result cannot approve a newer commit because each push starts a new check, cancels the obsolete run, and records the exact reviewed SHA in the report. Authentication errors, malformed output, model failures, or missing credentials fail closed.
 
