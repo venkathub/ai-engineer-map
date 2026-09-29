@@ -46,7 +46,7 @@ def inline(value: object) -> str:
 
 
 def workflow_message(value: object) -> str:
-    """Escape text before emitting it through a GitHub Actions workflow command."""
+    """Escape a workflow-command message body, never command properties."""
     return str(value).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
