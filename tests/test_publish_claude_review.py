@@ -154,6 +154,31 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertEqual(publisher.review_round(comments, sha_b)[1]["id"], 101)
         self.assertEqual(publisher.review_round(comments, sha_c), (3, None))
 
+    def test_native_round_review_is_visible_once_per_exact_head(self):
+        class Client:
+            def __init__(self, existing=None):
+                self.existing = existing or []
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                if method == "GET":
+                    return self.existing
+                return {}
+
+        sha = "a" * 40
+        body = f"{publisher.ROUND_MARKER}{sha}:r1 -->\nAPPROVED"
+        client = Client()
+        publisher.ensure_native_round_review(client, 4, sha, body)
+        self.assertEqual(client.calls[0][1], "/pulls/4/reviews?per_page=100&page=1")
+        self.assertEqual(client.calls[1][1], "/pulls/4/reviews")
+        self.assertEqual(client.calls[1][2]["commit_id"], sha)
+        self.assertEqual(client.calls[1][2]["event"], "COMMENT")
+
+        client = Client([{"body": body}])
+        publisher.ensure_native_round_review(client, 4, sha, body)
+        self.assertEqual(len(client.calls), 1)
+
     def test_thread_inventory_fails_closed_when_graphql_is_truncated(self):
         class Client:
             repository = "owner/repo"

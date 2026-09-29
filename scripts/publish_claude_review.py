@@ -353,6 +353,19 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
     return max(explicit_max, legacy_round) + 1, None
 
 
+def ensure_native_round_review(client: GitHub, pr: int, sha: str, body: str) -> None:
+    """Expose each exact-head verdict in GitHub's native Reviews timeline once."""
+    marker = f"{ROUND_MARKER}{sha}:"
+    reviews = list_pages(client, f"/pulls/{pr}/reviews")
+    if any(marker in (review.get("body") or "") for review in reviews):
+        return
+    client.rest(
+        "POST",
+        f"/pulls/{pr}/reviews",
+        {"body": body[:60_000], "commit_id": sha, "event": "COMMENT"},
+    )
+
+
 def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]]) -> None:
     artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
     if artifact.get("schema_version") != 1 or artifact.get("reviewed_sha") != args.sha:
@@ -442,6 +455,8 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         client.rest("PATCH", f"/issues/comments/{same_round['id']}", {"body": body})
     else:
         client.rest("POST", f"/issues/{args.pr}/comments", {"body": body})
+    require_publish_authorization(client, args.pr, forced_human_review, "native review mutation")
+    ensure_native_round_review(client, args.pr, args.sha, body)
 
     right, _left, fallback, anchors_truncated = diff_anchors(files)
     if anchors_truncated:
