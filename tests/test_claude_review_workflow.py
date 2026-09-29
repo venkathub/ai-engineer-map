@@ -76,6 +76,25 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("--json-output claude-review.json", self.workflow)
         self.assertIn("claude-review.json", self.workflow)
 
+    def test_route_conditions_match_decision_contract(self):
+        self.assertIn(
+            "claude_review_decision.py assumes this route runs iff subscription succeeded",
+            self.workflow,
+        )
+        self.assertIn("if: steps.subscription.outcome == 'success'", self.workflow)
+        self.assertIn(
+            "claude_review_decision.py assumes this is mutually exclusive with subscription-gate",
+            self.workflow,
+        )
+        self.assertIn("if: steps.subscription.outcome != 'success'", self.workflow)
+
+    def test_model_freshness_runs_do_not_overlap(self):
+        freshness = (
+            ROOT / ".github" / "workflows" / "claude-model-freshness.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("group: claude-model-freshness", freshness)
+        self.assertIn("cancel-in-progress: true", freshness)
+
     def test_supply_chain_and_model_freshness_are_monitored(self):
         dependabot = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
         freshness = (

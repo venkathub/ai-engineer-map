@@ -153,9 +153,10 @@ def verify_model(api_key: str, model: str) -> None:
     try:
         response = json.loads(raw.decode("utf-8"))
         returned_id = response.get("id") if isinstance(response, dict) else None
+        returned_type = response.get("type") if isinstance(response, dict) else None
     except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
         raise ProviderError("Anthropic returned an unreadable model record") from exc
-    if returned_id != model:
+    if returned_id != model or returned_type != "model":
         raise ProviderError("Anthropic did not confirm the configured Claude review model")
 
 

@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: claude-model-freshness
+  cancel-in-progress: true
+
 jobs:
   verify-model:
     runs-on: ubuntu-latest

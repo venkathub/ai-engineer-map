@@ -69,8 +69,8 @@ def validate_subscription_result(
 ) -> dict[str, Any]:
     if not auth_configured:
         raise ReviewError(
-            "Configure exactly one repository Actions secret: ANTHROPIC_API_KEY, or "
-            "CLAUDE_CODE_OAUTH_TOKEN for a supported Claude Pro/Max subscription."
+            "Configure CLAUDE_CODE_OAUTH_TOKEN for subscription review and/or "
+            "ANTHROPIC_API_KEY as a metered fallback."
         )
     if action_outcome != "success":
         raise ReviewError(f"Claude Code Action outcome was {action_outcome!r}")

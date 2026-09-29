@@ -78,6 +78,14 @@ class ClaudeApiReviewTests(unittest.TestCase):
                 api_review.verify_model("hidden-key", "not-a-model")
         self.assertNotIn("not-a-model", str(raised.exception))
 
+    def test_verify_model_rejects_wrong_catalog_record_type(self):
+        model_record = {"id": "claude-sonnet-5", "type": "not-a-model"}
+        with mock.patch.object(
+            api_review, "_request", return_value=json.dumps(model_record).encode()
+        ):
+            with self.assertRaises(api_review.ProviderError):
+                api_review.verify_model("hidden-key", "claude-sonnet-5")
+
     def test_verify_model_rejects_invalid_identifier_before_network(self):
         with mock.patch.object(api_review, "_request") as request:
             with self.assertRaises(api_review.ProviderError):

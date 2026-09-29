@@ -18,7 +18,7 @@ Generate the OAuth token from the intended Pro or Max account and paste each cre
 
 The API fallback accepts at most 300,000 bytes of diff text. Split larger changes into smaller pull requests; exceeding the limit produces a fail-closed review-unavailable report instead of an unbounded model request.
 
-The runtime model check is the source of truth: before every fallback review, the script retrieves the configured ID through Anthropic's `/v1/models/{model_id}` endpoint and fails closed unless Anthropic confirms it. The script currently defaults to `claude-sonnet-5`; Anthropic's live endpoint most recently confirmed that exact ID on 2026-09-29 during PR-gate verification. An Actions variable overrides it only when non-empty.
+The runtime model check is the source of truth: before every fallback review, the script retrieves the configured ID through Anthropic's `/v1/models/{model_id}` endpoint and fails closed unless Anthropic confirms both the exact ID and a model record. The script currently defaults to `claude-sonnet-5`; it is reconfirmed on every fallback invocation, and the workflow log is the source for the latest confirmation timestamp. An Actions variable overrides it only when non-empty.
 
 Local credentials may remain in the ignored `.env` for hands-on exercises, but the workflow reads encrypted Actions secrets. Never place either value in workflow YAML, pull-request text, logs, or repository variables. Rotate them according to the provider's policy. Each report identifies whether subscription OAuth or the API fallback produced its verdict without exposing credential details.
 

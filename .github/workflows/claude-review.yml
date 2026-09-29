@@ -146,6 +146,7 @@ jobs:
 
       - name: Build subscription review report
         id: subscription-gate
+        # claude_review_decision.py assumes this route runs iff subscription succeeded.
         if: steps.subscription.outcome == 'success'
         env:
           CLAUDE_AUTH_CONFIGURED: "true"
@@ -159,6 +160,7 @@ jobs:
 
       - name: Review with Anthropic API fallback
         id: api-gate
+        # claude_review_decision.py assumes this is mutually exclusive with subscription-gate.
         if: steps.subscription.outcome != 'success'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
