@@ -58,6 +58,7 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("safe_path", script)
         self.assertIn("reply here after fixing; do not resolve", script)
         self.assertIn('"needs-human"', script)
+        self.assertIn("CLAUDE_HUMAN_REREVIEW", script)
 
     def test_unreviewed_head_is_blocked_before_analysis(self):
         verify = self.workflow.split("  verify-head:", 1)[1].split("  block:", 1)[0]

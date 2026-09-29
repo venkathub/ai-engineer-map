@@ -291,6 +291,14 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
     if artifact.get("schema_version") != 1 or artifact.get("reviewed_sha") != args.sha:
         raise PublishError("review artifact does not belong to the current head")
+    # Re-check the human hold immediately before the first mutation. The
+    # required check remains the authoritative merge gate; this closes the
+    # block→analyze→publish label race on ordinary workflow runs. A maintainer-
+    # authorized forced review must opt in explicitly for this one process.
+    if "needs-human" in labels(client, args.pr) and os.environ.get("CLAUDE_HUMAN_REREVIEW") != "true":
+        raise PublishError(
+            "publication is paused by needs-human; set CLAUDE_HUMAN_REREVIEW=true only for an authorized forced review"
+        )
     issue_comments = list_pages(client, f"/issues/{args.pr}/comments")
     prior_audit = next((item for item in issue_comments if AUDIT_MARKER in (item.get("body") or "")), None)
     report = args.report.read_text(encoding="utf-8")[:60_000]

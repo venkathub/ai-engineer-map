@@ -2,7 +2,10 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import os
+import sys
 from pathlib import Path
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).parents[1] / "scripts" / "claude_review_gate.py"
@@ -164,6 +167,38 @@ class ClaudeReviewGateTests(unittest.TestCase):
         self.assertEqual(artifact["status"], "ERROR")
         self.assertNotIn("@team", artifact["error"])
         self.assertNotIn("<!-- hidden -->", artifact["error"])
+
+    def test_subscription_error_writes_matching_report_and_error_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review.md"
+            artifact_path = Path(directory) / "review.json"
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "REVIEWED_SHA": "a" * 40,
+                        "CLAUDE_AUTH_CONFIGURED": "false",
+                        "CLAUDE_ACTION_OUTCOME": "skipped",
+                    },
+                    clear=True,
+                ),
+                mock.patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "claude_review_gate.py",
+                        "--output",
+                        str(report),
+                        "--json-output",
+                        str(artifact_path),
+                    ],
+                ),
+            ):
+                self.assertEqual(review_gate.main(), 0)
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+            report_text = report.read_text(encoding="utf-8")
+        self.assertEqual(artifact["status"], "ERROR")
+        self.assertIn("REVIEW UNAVAILABLE", report_text)
 
 if __name__ == "__main__":
     unittest.main()

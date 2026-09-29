@@ -66,6 +66,14 @@ class PublishClaudeReviewTests(unittest.TestCase):
         comment = {"id": 7, "body": f"{publisher.ROUND_MARKER}{'a' * 40} -->"}
         self.assertEqual(publisher.review_round([comment], "b" * 40), (2, None))
 
+    def test_mixed_round_markers_never_decrease_in_non_monotonic_order(self):
+        comments = [
+            {"id": 3, "body": f"{publisher.ROUND_MARKER}{'c' * 40}:r3 -->"},
+            {"id": 1, "body": f"{publisher.ROUND_MARKER}{'a' * 40} -->"},
+            {"id": 2, "body": f"{publisher.ROUND_MARKER}{'b' * 40}:r2 -->"},
+        ]
+        self.assertEqual(publisher.review_round(comments, "d" * 40), (4, None))
+
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):
