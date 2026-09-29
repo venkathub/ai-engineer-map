@@ -279,6 +279,26 @@ class PublishClaudeReviewTests(unittest.TestCase):
                 publisher.block_exact_head(client, 4, "a" * 40, False)
         set_labels.assert_called_once_with(client, 4, set(), {"claude:approved"})
 
+    def test_hold_added_during_blocking_wins_the_race(self):
+        client = object()
+        with (
+            mock.patch.object(publisher, "set_labels"),
+            mock.patch.object(
+                publisher,
+                "labels",
+                side_effect=[set(), {"needs-human"}],
+            ),
+            mock.patch.object(publisher, "list_pages", return_value=[]),
+            mock.patch.object(publisher, "ensure_pending_comment"),
+            mock.patch.object(publisher, "threads", return_value=[]),
+            mock.patch.object(publisher, "remove_legacy_pending_threads"),
+        ):
+            with self.assertRaisesRegex(
+                publisher.PublishError,
+                "needs-human was applied while blocking the head",
+            ):
+                publisher.block_exact_head(client, 4, "a" * 40, False)
+
     def test_pending_state_is_a_standalone_comment_and_legacy_inline_is_removed(self):
         class Client:
             def __init__(self):
