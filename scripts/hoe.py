@@ -83,6 +83,98 @@ def configuration_report(
     }
 
 
+def _jl_json(
+    arguments: list[str],
+    environ: dict[str, str],
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> object:
+    result = runner(
+        ["jl", *arguments, "--json"],
+        env=environ,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        detail = (result.stderr or result.stdout or f"exit {result.returncode}").strip()
+        for name, value in environ.items():
+            if (name.endswith("_API_KEY") or name.endswith("_TOKEN")) and value:
+                detail = detail.replace(value, "[redacted]")
+        raise RuntimeError(detail[:300])
+    return json.loads(result.stdout)
+
+
+def jarvislabs_live_report(
+    environ: dict[str, str],
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> dict[str, object]:
+    """Query read-only account state and availability without exposing secrets."""
+    configured_gpu = environ.get("JARVISLABS_GPU", "L4").strip() or "L4"
+    configured_region = environ.get("JARVISLABS_REGION", "IN2").strip() or "IN2"
+    configured_workload = environ.get("JARVISLABS_WORKLOAD", "container").strip() or "container"
+    try:
+        storage_gb = int(environ.get("JARVISLABS_STORAGE_GB", "100"))
+    except ValueError:
+        storage_gb = 0
+    try:
+        status = _jl_json(["status"], environ, runner)
+        instances = _jl_json(["list"], environ, runner)
+        offers = _jl_json(["gpus"], environ, runner)
+    except (RuntimeError, json.JSONDecodeError) as error:
+        return {
+            "authenticated": False,
+            "configured_gpu_available": False,
+            "error": str(error),
+        }
+    if not isinstance(status, dict) or not isinstance(instances, list) or not isinstance(offers, list):
+        return {
+            "authenticated": True,
+            "configured_gpu_available": False,
+            "error": "JarvisLabs returned an unexpected JSON shape",
+        }
+    matching = [
+        offer for offer in offers
+        if offer.get("gpu_type") == configured_gpu
+        and offer.get("region") == configured_region
+        and offer.get("workload_type") == configured_workload
+    ]
+    safe_offers = [
+        {
+            "gpu_type": offer.get("gpu_type"),
+            "region": offer.get("region"),
+            "workload_type": offer.get("workload_type"),
+            "vram_gb": offer.get("vram"),
+            "free_devices": offer.get("num_free_devices"),
+            "price_per_hour": offer.get("price_per_hour"),
+            "spot_price": offer.get("spot_price"),
+        }
+        for offer in matching
+    ]
+    running = [item for item in instances if str(item.get("status", "")).lower() == "running"]
+    balance = status.get("balance", {})
+    amount = balance.get("balance", 0) if isinstance(balance, dict) else 0
+    return {
+        "authenticated": True,
+        "configured": {
+            "gpu": configured_gpu,
+            "region": configured_region,
+            "workload": configured_workload,
+            "storage_gb": storage_gb,
+        },
+        "account_funded": isinstance(amount, (int, float)) and amount > 0,
+        "currency": status.get("currency"),
+        "resources": status.get("resources", {}),
+        "instance_count": len(instances),
+        "running_instance_count": len(running),
+        "matching_offers": safe_offers,
+        "configured_gpu_available": any((offer.get("num_free_devices") or 0) > 0 for offer in matching),
+        "remote_environment_check": (
+            "available-but-not-executed" if running else "not-checked-no-running-instance"
+        ),
+        "action": "read-only API audit; no instance was created, resumed, resized, paused, or destroyed",
+    }
+
+
 def render_configuration(report: dict[str, object]) -> str:
     lines = ["HOE configuration check"]
     for section_name in ("provider", "gpu"):
@@ -95,6 +187,24 @@ def render_configuration(report: dict[str, object]) -> str:
         for note in section.get("notes", []):
             lines.append(f"  note: {note}")
     lines.append(f"- {report['action']}")
+    live = report.get("jarvislabs_live")
+    if isinstance(live, dict):
+        lines.append("- JarvisLabs live audit:")
+        lines.append(f"  authenticated: {live.get('authenticated', False)}")
+        configured = live.get("configured", {})
+        if isinstance(configured, dict):
+            lines.append(
+                "  target: "
+                f"{configured.get('gpu')} / {configured.get('region')} / {configured.get('workload')} / "
+                f"{configured.get('storage_gb')} GB"
+            )
+        lines.append(f"  funded: {live.get('account_funded', False)}")
+        lines.append(f"  target available: {live.get('configured_gpu_available', False)}")
+        lines.append(f"  instances: {live.get('instance_count', 0)} total, {live.get('running_instance_count', 0)} running")
+        lines.append(f"  remote environment: {live.get('remote_environment_check', 'not checked')}")
+        if live.get("error"):
+            lines.append(f"  error: {live['error']}")
+        lines.append(f"  {live.get('action', 'read-only audit failed')}")
     return "\n".join(lines)
 
 
@@ -195,11 +305,12 @@ def execute_topic(topic: dict[str, object], action: str, allow_billable: bool) -
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     subparsers = root.add_subparsers(dest="command", required=True)
-    check = subparsers.add_parser("check", help="validate provider/GPU configuration without connecting")
+    check = subparsers.add_parser("check", help="validate provider/GPU configuration")
     check.add_argument("--provider", choices=PROVIDERS, default="none")
     check.add_argument("--gpu", choices=GPU_BACKENDS, default="none")
     check.add_argument("--env-file", type=Path, default=Path(".env"))
     check.add_argument("--json", action="store_true", dest="as_json")
+    check.add_argument("--live", action="store_true", help="perform read-only JarvisLabs auth and availability queries")
     listing = subparsers.add_parser("list", help="list curriculum topics and execution modes")
     listing.add_argument("--mode", choices=("browser", "local", "byo-api", "gpu"))
     listing.add_argument("--status", choices=("guided", "automated", "setup-ready"))
@@ -223,6 +334,19 @@ def main(argv: list[str] | None = None) -> int:
         environ: dict[str, str] = dict(os.environ)
         load_env(args.env_file, environ)
         report = configuration_report(args.provider, args.gpu, environ)
+        if args.live:
+            if args.gpu != "jarvislabs":
+                print("--live currently requires --gpu jarvislabs", file=sys.stderr)
+                return 2
+            live = jarvislabs_live_report(environ)
+            report["jarvislabs_live"] = live
+            report["safe_to_start"] = bool(
+                report["safe_to_start"]
+                and live.get("authenticated")
+                and live.get("account_funded")
+                and live.get("configured_gpu_available")
+            )
+            report["action"] = "local configuration plus read-only JarvisLabs API audit completed"
         print(json.dumps(report, indent=2) if args.as_json else render_configuration(report))
         return 0 if report["safe_to_start"] else 1
     if args.command == "list":

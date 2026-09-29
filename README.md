@@ -37,9 +37,10 @@ The core curriculum remains free and dependency-free. Labs that need a hosted mo
 cp .env.example .env
 # Edit .env locally; it is ignored by Git.
 ./run.sh hoe check --provider openai --gpu jarvislabs
+./run.sh hoe check --provider openai --gpu jarvislabs --live
 ```
 
-The checker reports only whether required variables and tools exist; it never prints credential values or sends a request. GPU provisioning and billable API calls always remain manual. See [`docs/BYO_LLM_AND_GPU.md`](docs/BYO_LLM_AND_GPU.md) for providers, local OpenAI-compatible endpoints, JarvisLabs execution, storage, and shutdown guidance.
+The default checker reports only whether required variables and tools exist. `--live` adds read-only JarvisLabs authentication, account-readiness, and exact GPU/region/workload availability queries. Neither mode prints credential values, provisions compute, or makes a model request. GPU provisioning and billable API calls always remain manual. See [`docs/BYO_LLM_AND_GPU.md`](docs/BYO_LLM_AND_GPU.md) for providers, local OpenAI-compatible endpoints, JarvisLabs execution, storage, and shutdown guidance.
 
 Every curriculum topic has a versioned execution profile:
 

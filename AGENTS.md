@@ -60,5 +60,6 @@ Keep the established visual language: near-black shell, warm ivory reading surfa
 ./run.sh hoe list         # list every topic and its execution status
 ./run.sh hoe inspect ID   # inspect one resolved exercise contract
 ./run.sh hoe run ID       # run a declared free command or show guided steps
+./run.sh hoe check --gpu jarvislabs --live  # read-only auth and availability audit
 ./run.sh gpu-check        # run the CUDA smoke test on a GPU host
 ```

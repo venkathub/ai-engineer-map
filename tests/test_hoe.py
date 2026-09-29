@@ -53,6 +53,62 @@ class HoeConfigurationTests(unittest.TestCase):
         self.assertTrue(report["safe_to_start"])
         self.assertTrue(report["gpu"]["notes"])
 
+    def test_live_jarvislabs_audit_matches_region_and_workload(self):
+        payloads = {
+            "status": {
+                "balance": {"balance": 10.0},
+                "currency": "INR",
+                "resources": {"running_instances": 0},
+            },
+            "list": [],
+            "gpus": [
+                {
+                    "gpu_type": "L4",
+                    "region": "IN2",
+                    "workload_type": "vm",
+                    "num_free_devices": 0,
+                    "price_per_hour": 40.0,
+                    "spot_price": 20.0,
+                    "vram": "24",
+                },
+                {
+                    "gpu_type": "L4",
+                    "region": "IN2",
+                    "workload_type": "container",
+                    "num_free_devices": 5,
+                    "price_per_hour": 40.0,
+                    "spot_price": 20.0,
+                    "vram": "24",
+                },
+            ],
+        }
+
+        def runner(command, **_kwargs):
+            return mock.Mock(returncode=0, stdout=json_text(payloads[command[1]]), stderr="")
+
+        report = hoe.jarvislabs_live_report(
+            {
+                "JL_API_KEY": "never-print",
+                "JARVISLABS_GPU": "L4",
+                "JARVISLABS_REGION": "IN2",
+                "JARVISLABS_WORKLOAD": "container",
+                "JARVISLABS_STORAGE_GB": "100",
+            },
+            runner=runner,
+        )
+        self.assertTrue(report["authenticated"])
+        self.assertTrue(report["configured_gpu_available"])
+        self.assertEqual(report["matching_offers"][0]["free_devices"], 5)
+        self.assertNotIn("never-print", json_text(report))
+
+    def test_live_jarvislabs_audit_reports_auth_failure_safely(self):
+        def runner(_command, **_kwargs):
+            return mock.Mock(returncode=1, stdout="", stderr="invalid never-print")
+
+        report = hoe.jarvislabs_live_report({"JL_API_KEY": "never-print"}, runner=runner)
+        self.assertFalse(report["authenticated"])
+        self.assertNotIn("never-print", json_text(report))
+
 
 class HoeExecutionTests(unittest.TestCase):
     def test_every_topic_resolves_with_acceptance_evidence(self):
