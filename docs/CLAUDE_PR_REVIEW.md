@@ -41,6 +41,8 @@ GitHub requires an inline diff anchor to create a resolvable conversation. A pat
 
 A stale Claude result cannot approve a newer commit because each push first removes `claude:approved`, reopens the pending thread, starts a new check, cancels the obsolete run, and records the exact reviewed SHA in both artifacts. Authentication errors, malformed output, publication failures, model failures, missing credentials, or non-green exact-head validation fail closed.
 
+The publisher re-reads `needs-human` before every mutation group, but GitHub does not offer an atomic "check label and mutate comment/thread/label" transaction. A label can therefore change in the milliseconds between a read and its following write. This narrow residual TOCTOU window is accepted: the exact-head `claude-review` required check remains the authoritative merge gate, and later mutation groups re-check the hold and fail closed.
+
 ## Maintainer operations
 
 Inspect the current state without exposing credentials:

@@ -16,6 +16,7 @@ from claude_review_gate import (
 )
 
 VALID_VERDICTS = {"APPROVED", "CHANGES_REQUESTED", "ERROR"}
+VALID_STEP_OUTCOMES = {"success", "failure", "cancelled", "skipped"}
 
 
 def select_result(
@@ -29,6 +30,14 @@ def select_result(
     api_verdict: str,
     api_finding_count: str,
 ) -> tuple[bool, str, int]:
+    outcomes = {
+        "subscription": subscription_outcome,
+        "subscription gate": subscription_gate_outcome,
+        "API gate": api_gate_outcome,
+    }
+    for route, outcome in outcomes.items():
+        if outcome not in VALID_STEP_OUTCOMES:
+            raise ReviewError(f"{route} emitted an invalid GitHub Actions outcome")
     if subscription_outcome == "success":
         if subscription_gate_outcome != "success":
             raise ReviewError("subscription review succeeded but its report gate did not complete")

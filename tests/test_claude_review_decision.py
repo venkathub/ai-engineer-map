@@ -31,6 +31,14 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
         with self.assertRaises(decision.ReviewError):
             decision.select_result("failure", "skipped", "", "", "", "failure", "", "", "")
 
+    def test_rejects_unknown_step_outcomes_before_route_selection(self):
+        valid = ("failure", "skipped", "", "", "", "success", "false", "ERROR", "0")
+        for index in (0, 1, 5):
+            values = list(valid)
+            values[index] = "unexpected"
+            with self.subTest(index=index), self.assertRaises(decision.ReviewError):
+                decision.select_result(*values)
+
     def test_rejects_inconsistent_approval_and_verdict(self):
         with self.assertRaises(decision.ReviewError):
             decision.select_result(
