@@ -1,0 +1,2 @@
+# Optional remote/local GPU environment. The core site does not install these.
+torch

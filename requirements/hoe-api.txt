@@ -1,0 +1,5 @@
+# Optional hosted-model lab clients. The core site does not install these.
+openai
+anthropic
+google-genai
+openrouter
