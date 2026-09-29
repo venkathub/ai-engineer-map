@@ -52,8 +52,21 @@ class ClaudeApiReviewTests(unittest.TestCase):
             raw, usage = api_review.call_claude("hidden-key", "claude-sonnet-5", "review this")
         payload = json.loads(request.call_args.args[0].data.decode())
         self.assertEqual(payload["output_config"]["format"]["type"], "json_schema")
+        self.assertEqual(payload["output_config"]["effort"], "high")
+        self.assertEqual(payload["thinking"], {"type": "adaptive", "display": "omitted"})
         self.assertEqual(json.loads(raw)["verdict"], "APPROVED")
         self.assertEqual(usage["output_tokens"], 5)
+
+    def test_max_token_response_is_rejected(self):
+        response = {
+            "content": [{"type": "thinking", "thinking": ""}],
+            "stop_reason": "max_tokens",
+            "usage": {"output_tokens": 32_000},
+        }
+        with mock.patch.object(api_review, "_request", return_value=json.dumps(response).encode()):
+            with self.assertRaises(api_review.ProviderError) as raised:
+                api_review.call_claude("hidden-key", "claude-sonnet-5", "review this")
+        self.assertIn("token limit", str(raised.exception))
 
     def test_claude_request_combines_split_text_blocks(self):
         response = {

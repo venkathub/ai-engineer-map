@@ -12,7 +12,7 @@ Configure the Anthropic API key as an encrypted GitHub Actions repository secret
 gh secret set ANTHROPIC_API_KEY
 ```
 
-Paste an Anthropic Console API key at the hidden prompt. API usage is billed by Anthropic separately from a Claude web subscription. The review defaults to `claude-sonnet-5`, which supports structured outputs. Override it without changing the workflow by setting the non-secret Actions variable `CLAUDE_REVIEW_MODEL` to another compatible model.
+Paste an Anthropic Console API key at the hidden prompt. API usage is billed by Anthropic separately from a Claude web subscription. The review defaults to `claude-sonnet-5`, which supports structured outputs. It uses adaptive thinking at high effort with a hard 32,000-output-token ceiling; a truncated response fails closed. Override the model without changing the workflow by setting the non-secret Actions variable `CLAUDE_REVIEW_MODEL` to another compatible model, then verify its thinking configuration remains compatible.
 
 A local Anthropic API key may remain in the ignored `.env` for hands-on exercises, but the workflow reads its own encrypted Actions secret. Never place the key in workflow YAML, pull-request text, logs, or repository variables. Rotate it according to the provider's policy.
 
