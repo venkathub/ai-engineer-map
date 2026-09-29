@@ -293,11 +293,30 @@ class PublishClaudeReviewTests(unittest.TestCase):
                 with self.assertRaises(publisher.PublishError):
                     publisher.verify_write_capability(Client(permission))
 
+        class ActionsClient:
+            repository = "owner/repo"
+
+            def graphql(self, _query, _variables):
+                raise AssertionError("Actions installation-token role must not be probed")
+
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True):
-            publisher.verify_write_capability(Client("READ"))
-            for permission in ("TRIAGE", None):
-                with self.assertRaises(publisher.PublishError):
-                    publisher.verify_write_capability(Client(permission))
+            publisher.verify_write_capability(ActionsClient())
+
+    def test_actions_capability_defers_to_fail_closed_endpoint_mutation(self):
+        class Client:
+            repository = "owner/repo"
+
+            def graphql(self, _query, _variables):
+                raise AssertionError("Actions installation-token role must not be probed")
+
+            def rest(self, _method, _path, _payload=None):
+                raise publisher.PublishError("write endpoint denied", status=403)
+
+        client = Client()
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True):
+            publisher.verify_write_capability(client)
+        with self.assertRaisesRegex(publisher.PublishError, "write endpoint denied"):
+            publisher.ensure_pending_comment(client, 4, "a" * 40, [])
 
     def test_publish_authorization_fails_closed_on_human_hold(self):
         class Client:
