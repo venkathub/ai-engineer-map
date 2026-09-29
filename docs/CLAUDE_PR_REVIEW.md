@@ -4,7 +4,28 @@ Every non-draft pull request is reviewed at its current head commit by the `Clau
 
 The workflow runs trusted code from the base branch through `pull_request_target`. It fetches the pull-request diff as untrusted text and never checks out or executes pull-request code with a secret present. Claude receives only read tools on the subscription route and no tools on the API route; neither route can edit files, execute PR code, push, merge, label, or resolve threads. Analysis runs with read-only GitHub permissions. A validated machine-readable verdict and a sanitized report cross jobs as one-day artifacts; only the isolated publisher receives `issues: write` and `pull-requests: write`. A tested route-decision script requires exactly one valid result. The final `claude-review` job passes only when the selected route returns `APPROVED` with zero CRITICAL, HIGH, or MEDIUM findings and publication succeeds; LOW notes are non-blocking.
 
-Pull requests expose four purposeful checks: `curriculum-and-labs`, `claude-prepare`, `claude-analyze`, and the required `claude-review`. Preparation combines exact-head validation with stale-label revocation and pending-state publication. Analysis remains a separate read-only job because it receives an Anthropic credential. The final job combines publication with gate enforcement and has GitHub write scopes but no Anthropic credential. Combining these three Claude jobs further would give one job both provider secrets and repository write access. Validation runs once for a PR head; branch `push` validation is limited to `main`, avoiding duplicate checks for the same pull-request commit. Feature branches without an open PR use `./run.sh check` locally and begin CI validation when their pull request opens.
+Pull requests expose four purposeful checks: `curriculum-and-labs`, `claude-prepare`, `claude-analyze`, and the required `claude-review`. Preparation combines exact-head validation with stale-label revocation and pending-state publication. Analysis remains a separate read-only job because it receives an Anthropic credential. The final job combines publication with gate enforcement and receives a short-lived, narrowly scoped App token but no Anthropic credential. Combining these three Claude jobs further would give one job both provider secrets and repository write access. Validation runs once for a PR head; branch `push` validation is limited to `main`, avoiding duplicate checks for the same pull-request commit. Feature branches without an open PR use `./run.sh check` locally and begin CI validation when their pull request opens.
+
+## Dedicated review bot
+
+Review state is published through a repository-installed GitHub App, so GitHub attributes comments, reviews, labels, and thread resolution to `<app-slug>[bot]` instead of a maintainer. Register an app named for the reviewer (for example, `AI Engineer Map Claude Review`) with webhooks disabled and only these repository permissions:
+
+- Issues: Read and write
+- Pull requests: Read and write
+- Metadata: Read-only (automatically granted by GitHub)
+
+Install it only on `venkathub/ai-engineer-map`. Store its client ID as the Actions variable `CLAUDE_REVIEW_APP_CLIENT_ID`, and store the complete generated PEM private key as the encrypted Actions secret `CLAUDE_REVIEW_APP_PRIVATE_KEY`. Do not store the private key in `.env`, the repository, workflow text, logs, artifacts, or a pull-request comment.
+
+The `claude-prepare` and `claude-review` jobs use the GitHub-owned `actions/create-github-app-token` action pinned to the verified `v3.2.0` commit. Each job requests a short-lived, current-repository installation token narrowed to Issues and Pull requests write access; the action revokes it when the job finishes. The credential-bearing `claude-analyze` job never receives the App private key, installation token, or repository write scope. Missing or invalid App configuration fails closed before any review-state mutation.
+
+Configure the repository after installing the App:
+
+```bash
+gh variable set CLAUDE_REVIEW_APP_CLIENT_ID --body 'Iv1.example'
+gh secret set CLAUDE_REVIEW_APP_PRIVATE_KEY < path/to/downloaded-app.private-key.pem
+```
+
+GitHub does not allow changing the author of existing comments. Bootstrap comments created with a maintainer token remain attributed to that maintainer; subsequent workflow publications use the App bot identity.
 
 ## Authentication
 

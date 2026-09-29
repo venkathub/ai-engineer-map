@@ -18,14 +18,21 @@ jobs:
       human_rereview: ${{ steps.authorization.outputs.human_rereview }}
     permissions:
       contents: read
-      issues: write
-      pull-requests: write
     steps:
       - name: Check out trusted base revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
+
+      - name: Create Claude Review bot token
+        id: review-app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.CLAUDE_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY }}
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Determine human re-review authorization
         id: authorization
@@ -41,7 +48,7 @@ jobs:
 
       - name: Verify the event still names the current PR head
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.review-app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
           python3 scripts/publish_claude_review.py --mode verify
@@ -51,7 +58,7 @@ jobs:
       - name: Block the exact unreviewed head
         env:
           CLAUDE_HUMAN_REREVIEW: ${{ steps.authorization.outputs.human_rereview }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.review-app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
           python3 scripts/publish_claude_review.py --mode block
@@ -233,14 +240,21 @@ jobs:
     permissions:
       actions: read
       contents: read
-      issues: write
-      pull-requests: write
     steps:
       - name: Check out trusted base revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
+
+      - name: Create Claude Review bot token
+        id: review-app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.CLAUDE_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY }}
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Download sanitized review report
         id: download
@@ -254,7 +268,7 @@ jobs:
         if: needs.analyze.result == 'success' && steps.download.outcome == 'success'
         env:
           CLAUDE_HUMAN_REREVIEW: ${{ needs.prepare.outputs.human_rereview }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.review-app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           REVIEW_APPROVED: ${{ needs.analyze.outputs.approved }}
           REVIEW_FINDING_COUNT: ${{ needs.analyze.outputs.finding_count }}

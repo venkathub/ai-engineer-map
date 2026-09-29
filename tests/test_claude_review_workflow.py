@@ -131,6 +131,26 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         for removed in ("\n  verify-head:", "\n  block:", "\n  publish:"):
             self.assertNotIn(removed, self.workflow)
 
+    def test_dedicated_app_token_is_confined_to_write_jobs(self):
+        prepare = self.workflow.split("  prepare:", 1)[1].split("  analyze:", 1)[0]
+        analyze = self.workflow.split("  analyze:", 1)[1].split("  claude-review:", 1)[0]
+        publish = self.workflow.split("  claude-review:", 1)[1]
+        for write_job in (prepare, publish):
+            self.assertIn("actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1", write_job)
+            self.assertIn("CLAUDE_REVIEW_APP_CLIENT_ID", write_job)
+            self.assertIn("CLAUDE_REVIEW_APP_PRIVATE_KEY", write_job)
+            self.assertIn("permission-issues: write", write_job)
+            self.assertIn("permission-pull-requests: write", write_job)
+            self.assertIn("GH_TOKEN: ${{ steps.review-app.outputs.token }}", write_job)
+        self.assertNotIn("CLAUDE_REVIEW_APP_PRIVATE_KEY", analyze)
+        self.assertNotIn("steps.review-app.outputs.token", analyze)
+        for write_job in (prepare, publish):
+            job_permissions = write_job.split("    permissions:", 1)[1].split(
+                "    steps:", 1
+            )[0]
+            self.assertNotIn("issues: write", job_permissions)
+            self.assertNotIn("pull-requests: write", job_permissions)
+
     def test_subscription_success_still_validates_structured_output(self):
         self.assertIn("outcome=success selects this route", self.workflow)
         self.assertIn("structured_output still fails closed", self.workflow)
