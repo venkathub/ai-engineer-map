@@ -8,6 +8,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -107,9 +108,10 @@ def fetch_pull_request_diff(repository: str, pr_number: int, github_token: str =
 
 
 def verify_model(api_key: str, model: str) -> None:
-    """Fail closed unless Anthropic's live model catalog contains the configured ID."""
+    """Fail closed unless Anthropic's live model endpoint accepts the configured ID."""
+    encoded_model = urllib.parse.quote(model, safe="")
     request = urllib.request.Request(
-        "https://api.anthropic.com/v1/models?limit=100",
+        f"https://api.anthropic.com/v1/models/{encoded_model}",
         headers={
             "x-api-key": api_key,
             "anthropic-version": API_VERSION,
@@ -119,17 +121,11 @@ def verify_model(api_key: str, model: str) -> None:
     raw = _request(request)
     try:
         response = json.loads(raw.decode("utf-8"))
-        if not isinstance(response, dict):
-            raise TypeError("model catalog must be an object")
-        model_ids = {
-            item["id"]
-            for item in response.get("data", [])
-            if isinstance(item, dict) and isinstance(item.get("id"), str)
-        }
+        returned_id = response.get("id") if isinstance(response, dict) else None
     except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
-        raise ProviderError("Anthropic returned an unreadable model catalog") from exc
-    if model not in model_ids:
-        raise ProviderError("configured Claude review model is absent from the live model catalog")
+        raise ProviderError("Anthropic returned an unreadable model record") from exc
+    if returned_id != model:
+        raise ProviderError("Anthropic did not confirm the configured Claude review model")
 
 
 def resolve_model(configured: str | None) -> str:

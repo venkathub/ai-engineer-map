@@ -55,6 +55,20 @@ class ClaudeReviewGateTests(unittest.TestCase):
         self.assertIn("@\u200bteam", report)
         self.assertNotIn("<!-- hidden -->", report)
 
+    def test_report_renders_model_text_as_inert_markdown(self):
+        payload = json.loads(review_payload())
+        payload["summary"] = (
+            "# heading\n[click](https://evil.test) ![pixel](https://evil.test/p.png) "
+            "```spoof``` <b>raw</b> www.evil.test"
+        )
+        report = review_gate.render_review(review_gate.normalize_review(json.dumps(payload)), "abc123")
+        self.assertNotIn("https://", report)
+        self.assertNotIn("[click]", report)
+        self.assertNotIn("![pixel]", report)
+        self.assertNotIn("```spoof```", report)
+        self.assertNotIn("<b>", report)
+        self.assertNotIn("www.evil.test", report)
+
     def test_report_names_authentication_route(self):
         review = review_gate.normalize_review(review_payload())
         report = review_gate.render_review(review, "abc123", "Claude subscription OAuth")

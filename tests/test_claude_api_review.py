@@ -31,16 +31,18 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertEqual(headers["Authorization"], "Bearer hidden-token")
 
     def test_verify_model_accepts_exact_live_catalog_id(self):
-        catalog = {"data": [{"id": "claude-sonnet-5"}, {"id": "claude-sonnet-4-6"}]}
+        model_record = {"id": "claude-sonnet-5", "type": "model"}
         with mock.patch.object(
-            api_review, "_request", return_value=json.dumps(catalog).encode()
+            api_review, "_request", return_value=json.dumps(model_record).encode()
         ) as request:
             api_review.verify_model("hidden-key", "claude-sonnet-5")
-        self.assertIn("/v1/models?limit=100", request.call_args.args[0].full_url)
+        self.assertTrue(request.call_args.args[0].full_url.endswith("/v1/models/claude-sonnet-5"))
 
     def test_verify_model_rejects_unlisted_id(self):
-        catalog = {"data": [{"id": "claude-sonnet-5"}]}
-        with mock.patch.object(api_review, "_request", return_value=json.dumps(catalog).encode()):
+        model_record = {"id": "different-model", "type": "model"}
+        with mock.patch.object(
+            api_review, "_request", return_value=json.dumps(model_record).encode()
+        ):
             with self.assertRaises(api_review.ProviderError) as raised:
                 api_review.verify_model("hidden-key", "not-a-model")
         self.assertNotIn("not-a-model", str(raised.exception))

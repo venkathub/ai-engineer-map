@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -24,13 +25,27 @@ def _text(value: Any, field: str) -> str:
     return value.strip()
 
 
+def _plain_text(value: str) -> str:
+    """Flatten model text and neutralize mentions and automatically linked URLs."""
+    flattened = " ".join(value.split())
+    return (
+        flattened.replace("@", "@\u200b")
+        .replace("://", ":\u200b//")
+        .replace("www.", "www\u200b.")
+    )
+
+
 def _safe_markdown(value: str) -> str:
-    """Prevent mentions and comment markers from being injected into the report."""
-    return value.replace("@", "@\u200b").replace("<!--", "&lt;!--")
+    """Render model-controlled content as inert Markdown text."""
+    flattened = _plain_text(value)
+    escaped = re.sub(r"([\\`*_\[\]<>|~])", r"\\\1", flattened)
+    if escaped.startswith(("#", ">", "-", "+")):
+        escaped = "\\" + escaped
+    return re.sub(r"^(\d+)\.", r"\1\\.", escaped)
 
 
 def _inline_code(value: str) -> str:
-    return _safe_markdown(value).replace("`", "'")
+    return _plain_text(value).replace("`", "'")
 
 
 def normalize_review(raw: str) -> dict[str, Any]:
