@@ -98,7 +98,7 @@ The current role-coverage audit contains 104 concepts across 12 tracks. See `doc
 - [x] Secret-safe remote CUDA, storage, dependency, and required-environment check script
 - [ ] Automate the remaining guided exercises track by track
 - [ ] Surface execution readiness, cost, artifacts, and cleanup in the browser lab
-- [ ] Run the remote environment check on an explicitly authorized existing or newly created GPU instance
+- [x] Run the remote environment check on an explicitly authorized GPU and destroy the instance afterward
 
 ### M6 — Portfolio and community
 

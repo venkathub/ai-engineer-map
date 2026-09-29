@@ -57,11 +57,13 @@ jl run gpu/jarvislabs/smoke_test.py --gpu L4 --requirements requirements/hoe-gpu
 
 For unattended automation, JarvisLabs supports `JL_API_KEY`; keep it in the secret store of the automation system or the ignored `.env`, never in a command committed to Git. GPU names and availability change, so use `jl gpus` immediately before a run rather than treating an example GPU as guaranteed.
 
-The official managed-run workflow pauses the instance it creates when the job completes. Paused storage and shared storage can still incur cost. Inspect the JarvisLabs dashboard after every exercise and remove resources you no longer need. The documented shared filesystem is mounted at `/home/jl_fs`; use it only for artifacts that must survive instance replacement and never store plaintext API keys there.
+The official managed-run workflow pauses the instance it creates when the job completes. Paused storage and shared storage can still incur cost. Inspect the JarvisLabs dashboard after every exercise and remove resources you no longer need. When a shared filesystem is explicitly created and attached, it is mounted at `/home/jl_fs`; it is not present on an instance without that attachment. Use it only for artifacts that must survive instance replacement and never store plaintext API keys there.
 
 Set `JARVISLABS_REGION` and `JARVISLABS_WORKLOAD` as well as `JARVISLABS_GPU`: the same GPU can have different container and VM availability in each region. The `--live` audit authenticates, checks whether the account is funded, matches the exact target against current inventory and reports instance counts. It intentionally omits the balance amount, identity, tokens, IPs, URLs, and SSH commands.
 
 The environment check validates CUDA visibility, driver/runtime metadata, GPU memory, a small matrix multiplication, writable working storage, shared-storage presence, and optional environment-variable names without printing their values. It does not download a model or dataset, create a service, or expose a network port. For serving exercises, follow the official JarvisLabs vLLM or Ollama tutorial and restrict public access; both can present an OpenAI-compatible API to the `compatible` profile.
+
+Use `--require-shared-storage` only for exercises that were launched with an attached filesystem. The verification record from the first controlled L4 lifecycle is in [`JARVISLABS_AUDIT_2026-09-29.md`](JARVISLABS_AUDIT_2026-09-29.md).
 
 ## Topic execution catalog
 

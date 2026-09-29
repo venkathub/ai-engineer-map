@@ -21,6 +21,11 @@ def parser() -> argparse.ArgumentParser:
         metavar="NAME",
         help="require an environment variable by name; values are never printed",
     )
+    result.add_argument(
+        "--require-shared-storage",
+        action="store_true",
+        help="fail unless an attached shared filesystem is available at /home/jl_fs",
+    )
     return result
 
 
@@ -83,7 +88,13 @@ def main(argv: list[str] | None = None) -> int:
         "matrix_check": matrix_check,
         "checksum": float(result.sum().item()),
     })
-    report["ok"] = matrix_check and all(required_env.values())
+    shared_storage_ready = bool(report["filesystem"]["shared_storage_writable"])
+    report["shared_storage_required"] = args.require_shared_storage
+    report["ok"] = (
+        matrix_check
+        and all(required_env.values())
+        and (shared_storage_ready or not args.require_shared_storage)
+    )
     print(json.dumps(report, indent=2))
     return 0 if report["ok"] else 1
 
