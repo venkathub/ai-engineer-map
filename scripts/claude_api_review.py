@@ -135,6 +135,8 @@ def fetch_pull_request_diff(
 
 def verify_model(api_key: str, model: str) -> None:
     """Fail closed unless Anthropic's live model endpoint accepts the configured ID."""
+    if not MODEL_PATTERN.fullmatch(model):
+        raise ProviderError("configured Claude review model has an invalid identifier")
     encoded_model = urllib.parse.quote(model, safe="")
     request = urllib.request.Request(
         f"https://api.anthropic.com/v1/models/{encoded_model}",

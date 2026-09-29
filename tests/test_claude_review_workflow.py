@@ -66,6 +66,13 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", freshness)
         self.assertIn("--verify-model-only", freshness)
 
+    def test_all_workflow_actions_use_immutable_commit_pins(self):
+        for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
+            for line in workflow.read_text(encoding="utf-8").splitlines():
+                if "uses:" in line:
+                    reference = line.split("uses:", 1)[1].strip().split()[0]
+                    self.assertRegex(reference, r"@[0-9a-f]{40}$", workflow.name)
+
 
 if __name__ == "__main__":
     unittest.main()

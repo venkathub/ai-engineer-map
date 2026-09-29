@@ -54,7 +54,7 @@ The workflow deliberately does not use or execute code from the pull-request hea
 
 The pinned Claude Code Action receives a job-scoped `GITHUB_TOKEN` limited by GitHub to `contents: read` and `pull-requests: read`. It can obtain repository/PR context for review, but GitHub denies comment creation, branch updates, merges, workflow-log reads, and other write operations regardless of action behavior. The separate publisher receives `pull-requests: write` but receives neither Anthropic credential and executes no PR-authored code.
 
-The pinned action is still a privileged supply-chain dependency because it receives the OAuth secret and network access. Dependabot checks GitHub Actions weekly, but every proposed SHA rotation requires manual source/changelog review before merge. If the upstream pin is suspected of compromise, disable the workflow, rotate `CLAUDE_CODE_OAUTH_TOKEN`, inspect recent runs, and adopt a reviewed replacement SHA; a tag update alone is never trusted.
+Every workflow action is pinned to a full commit SHA. The Claude action remains the most privileged supply-chain dependency because it receives the OAuth secret and network access. Dependabot checks GitHub Actions weekly, but every proposed SHA rotation requires manual source/changelog review before merge. If an upstream pin is suspected of compromise, disable the affected workflow, rotate exposed credentials, inspect recent runs, and adopt a reviewed replacement SHA; a tag update alone is never trusted.
 
 The separate `Claude Model Freshness` workflow runs weekly and on demand. It uses the non-billing model metadata endpoint to confirm the configured/default API model before normal pull-request traffic depends on it.
 

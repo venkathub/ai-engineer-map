@@ -22,7 +22,7 @@ jobs:
       verdict: ${{ steps.decision.outputs.verdict }}
     steps:
       - name: Check out trusted base revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
@@ -107,7 +107,7 @@ jobs:
 
       - name: Retain sanitized review report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: claude-review-${{ github.event.pull_request.number }}
           path: claude-review.md
@@ -124,7 +124,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Download sanitized review report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: claude-review-${{ github.event.pull_request.number }}
 
@@ -133,7 +133,7 @@ jobs:
           REVIEW_APPROVED: ${{ needs.analyze.outputs.approved }}
           REVIEW_FINDING_COUNT: ${{ needs.analyze.outputs.finding_count }}
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ github.token }}
           script: |
@@ -266,10 +266,18 @@ jobs:
               }
               anchor ||= deletionAnchor;
               if (anchor) {
-                await github.rest.pulls.createReviewComment({
-                  owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
-                  path: anchor.path, line: anchor.line, side: anchor.side, body: compact,
-                });
+                try {
+                  await github.rest.pulls.createReviewComment({
+                    owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
+                    path: anchor.path, line: anchor.line, side: anchor.side, body: compact,
+                  });
+                } catch (_) {
+                  core.warning("Inline Claude review anchor was rejected; using a general review.");
+                  await github.rest.pulls.createReview({
+                    owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
+                    event: "COMMENT", body: compact,
+                  });
+                }
               } else {
                 await github.rest.pulls.createReview({
                   owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,

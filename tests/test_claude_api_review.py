@@ -71,6 +71,12 @@ class ClaudeApiReviewTests(unittest.TestCase):
                 api_review.verify_model("hidden-key", "not-a-model")
         self.assertNotIn("not-a-model", str(raised.exception))
 
+    def test_verify_model_rejects_invalid_identifier_before_network(self):
+        with mock.patch.object(api_review, "_request") as request:
+            with self.assertRaises(api_review.ProviderError):
+                api_review.verify_model("hidden-key", "../model")
+        request.assert_not_called()
+
     def test_empty_model_override_uses_verified_default(self):
         self.assertEqual(api_review.resolve_model(""), api_review.DEFAULT_MODEL)
         self.assertEqual(api_review.resolve_model("   "), api_review.DEFAULT_MODEL)
