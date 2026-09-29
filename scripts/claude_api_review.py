@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from claude_review_gate import (
-    MAX_FINDINGS,
     ReviewError,
     normalize_review,
     render_review,
@@ -38,7 +37,6 @@ REVIEW_SCHEMA: dict[str, Any] = {
         "summary": {"type": "string"},
         "findings": {
             "type": "array",
-            "maxItems": MAX_FINDINGS,
             "items": {
                 "type": "object",
                 "additionalProperties": False,

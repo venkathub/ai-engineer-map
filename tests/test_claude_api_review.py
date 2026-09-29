@@ -115,11 +115,9 @@ class ClaudeApiReviewTests(unittest.TestCase):
             raw, usage = api_review.call_claude("hidden-key", "claude-sonnet-5", "review this")
         payload = json.loads(request.call_args.args[0].data.decode())
         self.assertEqual(payload["output_config"]["format"]["type"], "json_schema")
-        self.assertEqual(
-            payload["output_config"]["format"]["schema"]["properties"]["findings"][
-                "maxItems"
-            ],
-            api_review.MAX_FINDINGS,
+        self.assertNotIn(
+            "maxItems",
+            payload["output_config"]["format"]["schema"]["properties"]["findings"],
         )
         self.assertNotIn("effort", payload["output_config"])
         self.assertEqual(payload["thinking"], {"type": "disabled"})
