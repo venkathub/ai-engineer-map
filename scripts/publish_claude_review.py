@@ -176,8 +176,9 @@ def verify_write_capability(client: GitHub) -> None:
     # viewerPermission may be READ, another non-write value, or absent even
     # when the installation token has the requested endpoint permissions. In
     # the trusted workflow, every following mutation is the capability probe
-    # and propagates failure. Exact-head validation has already authenticated
-    # the token before this function is called.
+    # and propagates failure. In every workflow mode, main() completes exact-
+    # head validation before calling this function, so the token has already
+    # completed an authenticated API read.
     if os.environ.get("GITHUB_ACTIONS") == "true":
         print(
             "GitHub Actions token write capability is enforced by job-scoped "
