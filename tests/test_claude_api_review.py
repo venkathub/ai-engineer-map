@@ -52,8 +52,8 @@ class ClaudeApiReviewTests(unittest.TestCase):
             raw, usage = api_review.call_claude("hidden-key", "claude-sonnet-5", "review this")
         payload = json.loads(request.call_args.args[0].data.decode())
         self.assertEqual(payload["output_config"]["format"]["type"], "json_schema")
-        self.assertEqual(payload["output_config"]["effort"], "high")
-        self.assertEqual(payload["thinking"], {"type": "adaptive", "display": "omitted"})
+        self.assertNotIn("effort", payload["output_config"])
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
         self.assertEqual(json.loads(raw)["verdict"], "APPROVED")
         self.assertEqual(usage["output_tokens"], 5)
 
@@ -61,7 +61,7 @@ class ClaudeApiReviewTests(unittest.TestCase):
         response = {
             "content": [{"type": "thinking", "thinking": ""}],
             "stop_reason": "max_tokens",
-            "usage": {"output_tokens": 32_000},
+            "usage": {"output_tokens": 8_000},
         }
         with mock.patch.object(api_review, "_request", return_value=json.dumps(response).encode()):
             with self.assertRaises(api_review.ProviderError) as raised:
