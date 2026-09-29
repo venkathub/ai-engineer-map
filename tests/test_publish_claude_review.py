@@ -61,6 +61,16 @@ class PublishClaudeReviewTests(unittest.TestCase):
             {"path": "target.py", "line": 3, "side": "RIGHT"},
         )
 
+    def test_path_only_finding_uses_first_changed_line_in_same_file(self):
+        finding = {"path": "target.py", "line": None}
+        with io.StringIO() as output, redirect_stdout(output):
+            anchor = publisher.finding_anchor(
+                finding, {"target.py": {9, 4}, "other.py": {1}}, None
+            )
+            warning = output.getvalue()
+        self.assertEqual(anchor, {"path": "target.py", "line": 4, "side": "RIGHT"})
+        self.assertIn("finding omitted a line", warning)
+
     def test_inline_failure_falls_back_only_for_http_422(self):
         class Client:
             def __init__(self, status):

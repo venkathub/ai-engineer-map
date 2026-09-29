@@ -296,11 +296,19 @@ def finding_body(finding: dict[str, Any], sha: str, round_number: int) -> str:
 def finding_anchor(
     finding: dict[str, Any], right: dict[str, set[int]], fallback: dict[str, object] | None
 ) -> dict[str, object] | None:
-    """Choose an exact line or a general review; never misplace a path-specific finding."""
+    """Choose a same-file changed line or a general review; never misplace a finding."""
     path, line = finding.get("path"), finding.get("line")
     if safe_path(path):
-        if isinstance(line, int) and line in right.get(path, set()):
+        changed_lines = right.get(path, set())
+        if isinstance(line, int) and line in changed_lines:
             return {"path": path, "line": line, "side": "RIGHT"}
+        if line is None and changed_lines:
+            anchor_line = min(changed_lines)
+            print(
+                "Claude publisher warning: finding omitted a line; "
+                f"using first changed line {anchor_line} in {inline(path)}"
+            )
+            return {"path": path, "line": anchor_line, "side": "RIGHT"}
         print(f"Claude publisher warning: no exact inline anchor for finding path {inline(path)}")
         return None
     return fallback
