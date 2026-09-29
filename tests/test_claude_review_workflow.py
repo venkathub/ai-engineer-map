@@ -74,17 +74,25 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("publish_claude_review.py --mode block", block)
         self.assertIn("issues: write", block)
         self.assertIn("pull-requests: write", block)
-        self.assertIn("needs: block", analyze)
+        self.assertIn("needs: [verify-head, block]", analyze)
 
     def test_new_fix_commit_is_the_human_re_review_trigger(self):
         self.assertIn("opened, reopened, synchronize, ready_for_review", self.workflow)
         self.assertNotIn("unlabeled", self.workflow)
-        forced = "github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'needs-human')"
-        self.assertEqual(self.workflow.count(forced), 2)
+        self.assertIn("Determine human re-review authorization", self.workflow)
+        self.assertIn("HAD_HUMAN_HOLD", self.workflow)
+        self.assertIn('EVENT_ACTION\" = \"synchronize', self.workflow)
+        self.assertIn("human_rereview: ${{ steps.authorization.outputs.human_rereview }}", self.workflow)
         block = self.workflow.split("  block:", 1)[1].split("  analyze:", 1)[0]
         publish = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
-        self.assertIn("CLAUDE_HUMAN_REREVIEW", block)
-        self.assertIn("CLAUDE_HUMAN_REREVIEW", publish)
+        authorization = "CLAUDE_HUMAN_REREVIEW: ${{ needs.verify-head.outputs.human_rereview }}"
+        self.assertIn(authorization, block)
+        self.assertIn(authorization, publish)
+
+    def test_subscription_success_still_validates_structured_output(self):
+        self.assertIn("outcome=success selects this route", self.workflow)
+        self.assertIn("structured_output still fails closed", self.workflow)
+        self.assertIn("CLAUDE_REVIEW_JSON: ${{ steps.subscription.outputs.structured_output }}", self.workflow)
 
     def test_validated_json_crosses_the_job_boundary(self):
         self.assertIn("--json-output claude-review.json", self.workflow)
@@ -92,7 +100,7 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
 
     def test_route_conditions_match_decision_contract(self):
         self.assertIn(
-            "claude_review_decision.py assumes this route runs iff subscription succeeded",
+            "Step outcome=success selects this route",
             self.workflow,
         )
         self.assertIn("if: steps.subscription.outcome == 'success'", self.workflow)
