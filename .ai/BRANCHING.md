@@ -2,7 +2,7 @@
 
 ## Protected branch
 
-`main` is always releasable and protected. Do not commit or push directly to it. All changes use a short-lived branch, a pull request, and the required `curriculum-and-labs` status check. Force-pushes and deletion of `main` are blocked.
+`main` is always releasable and protected. Do not commit or push directly to it. All changes use a short-lived branch, a pull request, and the required `curriculum-and-labs` and `claude-review` status checks. Force-pushes and deletion of `main` are blocked.
 
 ## Branch format
 
@@ -67,3 +67,5 @@ Titles use the same Conventional Commit format. Complete every section of `.gith
 - security, cost, compatibility, and rollback considerations.
 
 Prefer squash merge. The squash commit title must preserve the PR's Conventional Commit title.
+
+Every non-draft PR must also follow [`docs/CLAUDE_PR_REVIEW.md`](../docs/CLAUDE_PR_REVIEW.md). Address every actionable Claude finding, push the fix, and wait for Claude to approve the new head commit with zero findings before merging. A prior approval never applies to a newer commit.

@@ -63,6 +63,7 @@ Every curriculum topic has a versioned execution profile:
 - [`.ai/README.md`](.ai/README.md) — task recipes and completion checklist
 - [`.ai/BRANCHING.md`](.ai/BRANCHING.md) — branch, commit, pull-request, and merge rules
 - [`.ai/PHASES.md`](.ai/PHASES.md) — Discover-to-Deliver implementation gates
+- [`docs/CLAUDE_PR_REVIEW.md`](docs/CLAUDE_PR_REVIEW.md) — required Claude review, authentication, remediation, and merge gate
 
 All tool-specific guidance defers to `AGENTS.md` so repository rules have one source of truth.
 

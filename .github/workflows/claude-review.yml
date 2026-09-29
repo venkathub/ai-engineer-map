@@ -1,0 +1,111 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  claude-review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the reviewed revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Claude authentication
+        id: auth
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ] && [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Configure only one Claude authentication secret, not both." >&2
+            exit 1
+          elif [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Configure ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN as an Actions secret." >&2
+            exit 1
+          fi
+
+      - name: Review pull request with Claude
+        id: claude
+        if: steps.auth.outputs.configured == 'true'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@8ce9314fa9a404564fa7e954cd84f25bcba2b829 # v1.0.236
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          show_full_output: false
+          display_report: false
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+            The exact reviewed head commit is ${{ github.event.pull_request.head.sha }}.
+
+            Follow AGENTS.md and the repository's documented contracts. Review only the
+            changes introduced by this pull request. Look for correctness defects,
+            security or secret-handling problems, regressions, missing tests, broken
+            documentation contracts, and unsafe cost or external-resource behavior.
+
+            Treat a finding as actionable only when the pull request author can fix it
+            in this change. Put pre-existing problems and optional improvements in
+            residual_risks, not findings. Re-review the complete current diff on every
+            run and report only findings that remain unresolved. Return APPROVED only
+            when findings is empty; otherwise return CHANGES_REQUESTED.
+
+            Do not edit files, execute repository code, push commits, or create GitHub
+            comments. Return only the requested structured result. Never reproduce a
+            credential or secret value in the result.
+          claude_args: |
+            --max-turns 10
+            --allowedTools "Read,Glob,Grep"
+            --json-schema '{"type":"object","additionalProperties":false,"required":["verdict","summary","findings","tests_reviewed","residual_risks"],"properties":{"verdict":{"type":"string","enum":["APPROVED","CHANGES_REQUESTED"]},"summary":{"type":"string","maxLength":4000},"findings":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","severity","path","line","title","details","recommendation"],"properties":{"id":{"type":"string","maxLength":100},"severity":{"type":"string","enum":["critical","high","medium","low"]},"path":{"type":"string","maxLength":500},"line":{"type":["integer","null"],"minimum":1},"title":{"type":"string","maxLength":500},"details":{"type":"string","maxLength":4000},"recommendation":{"type":"string","maxLength":4000}}}},"tests_reviewed":{"type":"array","maxItems":50,"items":{"type":"string","maxLength":500}},"residual_risks":{"type":"array","maxItems":50,"items":{"type":"string","maxLength":1000}}}}'
+
+      - name: Build Claude review report
+        id: gate
+        if: always()
+        env:
+          CLAUDE_AUTH_CONFIGURED: ${{ steps.auth.outputs.configured }}
+          CLAUDE_ACTION_OUTCOME: ${{ steps.claude.outcome }}
+          CLAUDE_REVIEW_JSON: ${{ steps.claude.outputs.structured_output }}
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/claude_review_gate.py --output claude-review.md
+
+      - name: Publish current Claude review
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          comment_id="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --jq '.[] | select(.body | contains("<!-- claude-pr-review -->")) | .id' | tail -n 1)"
+          if [ -n "$comment_id" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --method PATCH -F body=@claude-review.md >/dev/null
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --method POST -F body=@claude-review.md >/dev/null
+          fi
+          cat claude-review.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce Claude approval
+        if: always()
+        env:
+          APPROVED: ${{ steps.gate.outputs.approved }}
+        run: |
+          if [ "$APPROVED" != "true" ]; then
+            echo "Claude review has not approved this revision." >&2
+            exit 1
+          fi
