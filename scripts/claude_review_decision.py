@@ -15,6 +15,7 @@ from claude_review_gate import (
     write_outputs,
 )
 
+# Transient gate signal that selects API fallback; never a terminal published verdict.
 ERROR_VERDICT = "ERROR"
 VALID_VERDICTS = {"APPROVED", "CHANGES_REQUESTED", ERROR_VERDICT}
 VALID_STEP_OUTCOMES = {"success", "failure", "cancelled", "skipped"}
