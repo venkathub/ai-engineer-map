@@ -18,6 +18,8 @@ Install it only on `venkathub/ai-engineer-map`. Store its client ID as the Actio
 
 The `claude-prepare` and `claude-review` jobs use the GitHub-owned `actions/create-github-app-token` action pinned to the verified `v3.2.0` commit. Each job requests a short-lived, current-repository installation token narrowed to Issues and Pull requests write access; the action revokes it when the job finishes. The credential-bearing `claude-analyze` job never receives the App private key, installation token, or repository write scope. Missing or invalid App configuration fails closed before any review-state mutation.
 
+Publisher failures emit a structured `Claude review publisher` annotation in the affected job. The message distinguishes policy holds such as `needs-human` from API or inventory failures without exposing response bodies or credentials; all such failures keep the required gate red and retry on the next authorized event.
+
 Configure the repository after installing the App:
 
 ```bash

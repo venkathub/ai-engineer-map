@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -42,6 +43,11 @@ def inert(value: object) -> str:
 
 def inline(value: object) -> str:
     return " ".join(str(value).split()).replace("`", "'").replace("@", "@\u200b")
+
+
+def workflow_message(value: object) -> str:
+    """Escape text before emitting it through a GitHub Actions workflow command."""
+    return str(value).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 def safe_path(path: object) -> bool:
@@ -591,5 +597,16 @@ def main() -> int:
     return 0
 
 
+def cli() -> int:
+    try:
+        return main()
+    except PublishError as exc:
+        print(
+            f"::error title=Claude review publisher::{workflow_message(exc)}",
+            file=sys.stderr,
+        )
+        return 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())

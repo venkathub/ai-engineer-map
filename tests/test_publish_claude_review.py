@@ -22,6 +22,19 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertNotIn("https://", rendered)
         self.assertNotIn("[x]", rendered)
 
+    def test_cli_surfaces_a_safely_escaped_actions_error(self):
+        error = publisher.PublishError("blocked 100%\nneeds-human")
+        with (
+            mock.patch.object(publisher, "main", side_effect=error),
+            io.StringIO() as stderr,
+            mock.patch("sys.stderr", stderr),
+        ):
+            self.assertEqual(publisher.cli(), 1)
+            rendered = stderr.getvalue()
+        self.assertIn("::error title=Claude review publisher::", rendered)
+        self.assertIn("100%25%0Aneeds-human", rendered)
+        self.assertNotIn("100%\n", rendered)
+
     def test_paths_reject_traversal_and_controls(self):
         self.assertTrue(publisher.safe_path("scripts/check.py"))
         for path in ("../secret", "/root/secret", "a\\b", "bad\npath", "a/../b", ""):
