@@ -93,6 +93,15 @@ Native review visibility is part of successful publication, not best-effort deco
 
 Every workflow action is pinned to a full commit SHA. The Claude action remains the most privileged supply-chain dependency because it receives the OAuth secret and network access. Dependabot checks GitHub Actions weekly, but every proposed SHA rotation requires manual source/changelog review before merge. If an upstream pin is suspected of compromise, disable the affected workflow, rotate exposed credentials, inspect recent runs, and adopt a reviewed replacement SHA; a tag update alone is never trusted.
 
+The coordinated workflow upgrade was verified on September 30, 2026 against each action's official Git tag endpoint. Every tag directly targets the commit pinned in the workflows:
+
+| Action | Official tag | Pinned commit |
+| --- | --- | --- |
+| `actions/checkout` | [`v7.0.1`](https://github.com/actions/checkout/releases/tag/v7.0.1) | [`3d3c42e5aac5ba805825da76410c181273ba90b1`](https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1) |
+| `actions/setup-python` | [`v7.0.0`](https://github.com/actions/setup-python/releases/tag/v7.0.0) | [`5fda3b95a4ea91299a34e894583c3862153e4b97`](https://github.com/actions/setup-python/commit/5fda3b95a4ea91299a34e894583c3862153e4b97) |
+| `actions/upload-artifact` | [`v7.0.1`](https://github.com/actions/upload-artifact/releases/tag/v7.0.1) | [`043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`](https://github.com/actions/upload-artifact/commit/043fb46d1a93c77aae656e7c1c64a875d1fc6a0a) |
+| `actions/download-artifact` | [`v8.0.1`](https://github.com/actions/download-artifact/releases/tag/v8.0.1) | [`3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c`](https://github.com/actions/download-artifact/commit/3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c) |
+
 Pin verification record: Anthropic's official annotated [`v1.0.236` tag](https://github.com/anthropics/claude-code-action/releases/tag/v1.0.236) peels to commit [`8ce9314fa9a404564fa7e954cd84f25bcba2b829`](https://github.com/anthropics/claude-code-action/commit/8ce9314fa9a404564fa7e954cd84f25bcba2b829), which is the workflow pin. GitHub reports the tag and commit as unsigned, so this is provenance evidence, not cryptographic identity proof; maintainers must review upstream source/history and Dependabot-proposed replacements before rotating it.
 
 The separate `Claude Model Freshness` workflow runs weekly and on demand. It uses the non-billing model metadata endpoint to confirm the configured/default API model before normal pull-request traffic depends on it.
