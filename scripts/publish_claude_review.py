@@ -152,6 +152,19 @@ THREAD_QUERY = """
 query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage endCursor} nodes{id isResolved comments(first:100){pageInfo{hasNextPage endCursor} nodes{databaseId body}}}}}}}
 """
 
+PERMISSION_QUERY = """
+query($owner:String!,$repo:String!){repository(owner:$owner,name:$repo){viewerPermission}}
+"""
+
+
+def verify_write_capability(client: GitHub) -> None:
+    """Fail before mutation unless GitHub recognizes this token as a repository writer."""
+    owner, repo = client.repository.split("/", 1)
+    data = client.graphql(PERMISSION_QUERY, {"owner": owner, "repo": repo})
+    permission = data.get("repository", {}).get("viewerPermission")
+    if permission not in {"WRITE", "MAINTAIN", "ADMIN"}:
+        raise PublishError("GitHub token does not have repository write capability")
+
 
 def threads(client: GitHub, pr: int) -> list[dict[str, Any]]:
     owner, repo = client.repository.split("/", 1)
@@ -429,11 +442,29 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
 
     if pending:
         set_resolved(client, pending, False)
+    current_markers = {
+        finding_marker(finding, args.sha)
+        for finding in findings
+        if finding.get("severity") in BLOCKING
+    }
+    for thread in all_threads:
+        bodies = [comment.get("body") or "" for comment in thread["comments"]["nodes"]]
+        if any(FINDING_MARKER in body for body in bodies) and not any(
+            marker in body for marker in current_markers for body in bodies
+        ):
+            set_resolved(client, thread, True)
     for finding in findings:
         if finding.get("severity") not in BLOCKING:
             continue
+        marker = finding_marker(finding, args.sha)
+        existing = marker_thread(all_threads, marker)
+        body = finding_body(finding, args.sha, round_number)
+        if existing:
+            update_root_comment(client, existing, body)
+            set_resolved(client, existing, False)
+            continue
         anchor = finding_anchor(finding, right, fallback)
-        create_thread_or_review(client, args.pr, args.sha, anchor, finding_body(finding, args.sha, round_number))
+        create_thread_or_review(client, args.pr, args.sha, anchor, body)
     additions = {"claude:changes-requested"}
     if round_number >= 2:
         additions.add("needs-human")
@@ -458,6 +489,7 @@ def main() -> int:
     validate_head(client, args.pr, args.sha)
     if args.mode == "verify":
         return 0
+    verify_write_capability(client)
     files = list_pages(client, f"/pulls/{args.pr}/files", limit=3)
     _right, _left, fallback, _anchors_truncated = diff_anchors(files)
     all_threads = threads(client, args.pr)

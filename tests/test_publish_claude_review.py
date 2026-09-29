@@ -159,6 +159,22 @@ class PublishClaudeReviewTests(unittest.TestCase):
             with self.assertRaises(publisher.PublishError):
                 publisher.threads(client, 4)
 
+    def test_write_capability_is_probed_before_mutation(self):
+        class Client:
+            repository = "owner/repo"
+
+            def __init__(self, permission):
+                self.permission = permission
+
+            def graphql(self, _query, _variables):
+                return {"repository": {"viewerPermission": self.permission}}
+
+        for permission in ("WRITE", "MAINTAIN", "ADMIN"):
+            publisher.verify_write_capability(Client(permission))
+        for permission in ("READ", "TRIAGE", None):
+            with self.assertRaises(publisher.PublishError):
+                publisher.verify_write_capability(Client(permission))
+
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):
