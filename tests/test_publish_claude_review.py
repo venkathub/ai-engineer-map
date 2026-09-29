@@ -189,6 +189,16 @@ class PublishClaudeReviewTests(unittest.TestCase):
             with self.assertRaises(publisher.PublishError):
                 publisher.verify_write_capability(Client(permission))
 
+    def test_publish_authorization_fails_closed_on_human_hold(self):
+        class Client:
+            def rest(self, _method, _path):
+                return {"labels": [{"name": "needs-human"}]}
+
+        with self.assertRaises(publisher.PublishError) as raised:
+            publisher.require_publish_authorization(Client(), 4, False, "test mutation")
+        self.assertIn("test mutation", str(raised.exception))
+        publisher.require_publish_authorization(Client(), 4, True, "forced mutation")
+
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):

@@ -25,6 +25,8 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("curriculum-and-labs", analyze)
         self.assertIn("commits/${HEAD_SHA}/check-runs", analyze)
         self.assertIn("sort_by(.started_at, .id) | last", analyze)
+        self.assertIn("seq 1 35", analyze)
+        self.assertIn("Worst-case sleeps total 700 seconds", analyze)
         self.assertIn('then "missing"', analyze)
         self.assertIn("was not queued", analyze)
 

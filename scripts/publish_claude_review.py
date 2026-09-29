@@ -259,6 +259,14 @@ def set_labels(client: GitHub, pr: int, add: set[str], remove: set[str]) -> None
             pass
 
 
+def require_publish_authorization(
+    client: GitHub, pr: int, forced_human_review: bool, stage: str
+) -> None:
+    """Fail closed when a human hold appears before a publication mutation."""
+    if "needs-human" in labels(client, pr) and not forced_human_review:
+        raise PublishError(f"publication paused by needs-human before {stage}")
+
+
 def validate_head(client: GitHub, pr: int, sha: str) -> None:
     if not SHA_RE.fullmatch(sha):
         raise PublishError("REVIEWED_SHA must be a full lowercase commit ID")
@@ -352,10 +360,7 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     # block→analyze→publish label race on ordinary workflow runs. A maintainer-
     # authorized forced review must opt in explicitly for this one process.
     forced_human_review = os.environ.get("CLAUDE_HUMAN_REREVIEW") == "true"
-    if "needs-human" in labels(client, args.pr) and not forced_human_review:
-        raise PublishError(
-            "publication is paused by needs-human; set CLAUDE_HUMAN_REREVIEW=true only for an authorized forced review"
-        )
+    require_publish_authorization(client, args.pr, forced_human_review, "artifact validation")
     expected_approved = os.environ.get("REVIEW_APPROVED")
     expected_count = os.environ.get("REVIEW_FINDING_COUNT", "")
     if expected_approved not in {"true", "false"} or not expected_count.isdigit():
@@ -387,11 +392,13 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     issue_comments = list_pages(client, f"/issues/{args.pr}/comments")
     prior_audit = next((item for item in issue_comments if AUDIT_MARKER in (item.get("body") or "")), None)
     report = args.report.read_text(encoding="utf-8")[:60_000]
+    require_publish_authorization(client, args.pr, forced_human_review, "audit mutation")
     if prior_audit:
         audit = client.rest("PATCH", f"/issues/comments/{prior_audit['id']}", {"body": report})
     else:
         audit = client.rest("POST", f"/issues/{args.pr}/comments", {"body": report})
     if status == "ERROR":
+        require_publish_authorization(client, args.pr, forced_human_review, "error label mutation")
         set_labels(client, args.pr, set(), {"claude:approved"})
         return
     assert review is not None
@@ -428,6 +435,7 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
                 ]
             )
     body = "\n".join(summary)[:60_000]
+    require_publish_authorization(client, args.pr, forced_human_review, "round summary mutation")
     if same_round:
         client.rest("PATCH", f"/issues/comments/{same_round['id']}", {"body": body})
     else:
@@ -443,6 +451,7 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     pending = marker_thread(all_threads, PENDING_MARKER)
     approved = review["verdict"] == "APPROVED"
     if approved:
+        require_publish_authorization(client, args.pr, forced_human_review, "approval thread mutation")
         if pending:
             update_root_comment(
                 client,
@@ -453,11 +462,11 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         for thread in all_threads:
             if any(FINDING_MARKER in (comment.get("body") or "") for comment in thread["comments"]["nodes"]):
                 set_resolved(client, thread, True)
-        if "needs-human" in labels(client, args.pr) and not forced_human_review:
-            raise PublishError("needs-human was applied during publication; refusing final label mutation")
+        require_publish_authorization(client, args.pr, forced_human_review, "approval label mutation")
         set_labels(client, args.pr, {"claude:approved"}, {"claude:changes-requested", "needs-human"})
         return
 
+    require_publish_authorization(client, args.pr, forced_human_review, "pending thread mutation")
     if pending:
         set_resolved(client, pending, False)
     current_markers = {
@@ -465,12 +474,14 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         for finding in findings
         if finding.get("severity") in BLOCKING
     }
+    require_publish_authorization(client, args.pr, forced_human_review, "finding reconciliation")
     for thread in all_threads:
         bodies = [comment.get("body") or "" for comment in thread["comments"]["nodes"]]
         if any(FINDING_MARKER in body for body in bodies) and not any(
             marker in body for marker in current_markers for body in bodies
         ):
             set_resolved(client, thread, True)
+    require_publish_authorization(client, args.pr, forced_human_review, "finding publication")
     for finding in findings:
         if finding.get("severity") not in BLOCKING:
             continue
@@ -486,8 +497,7 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     additions = {"claude:changes-requested"}
     if round_number >= 2:
         additions.add("needs-human")
-    if "needs-human" in labels(client, args.pr) and not forced_human_review:
-        raise PublishError("needs-human was applied during publication; refusing final label mutation")
+    require_publish_authorization(client, args.pr, forced_human_review, "changes label mutation")
     set_labels(client, args.pr, additions, {"claude:approved"})
 
 
