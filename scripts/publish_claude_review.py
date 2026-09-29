@@ -15,7 +15,8 @@ from typing import Any
 
 API = "https://api.github.com"
 AUDIT_MARKER = "<!-- claude-pr-review -->"
-PENDING_MARKER = "<!-- claude-review-thread -->"
+PENDING_MARKER = "<!-- claude-review-state -->"
+LEGACY_PENDING_MARKER = "<!-- claude-review-thread -->"
 ROUND_MARKER = "<!-- claude-review-round:"
 FINDING_MARKER = "<!-- claude-review-finding:"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -235,8 +236,8 @@ def update_root_comment(client: GitHub, thread: dict[str, Any], body: str) -> No
     client.rest("PATCH", f"/pulls/comments/{comment_id}", {"body": body[:60_000]})
 
 
-def ensure_pending(
-    client: GitHub, pr: int, sha: str, all_threads: list[dict[str, Any]], anchor: dict[str, object] | None
+def ensure_pending_comment(
+    client: GitHub, pr: int, sha: str, issue_comments: list[dict[str, Any]]
 ) -> None:
     body = "\n".join(
         [
@@ -244,15 +245,27 @@ def ensure_pending(
             "### 🔒 Claude review pending",
             "",
             f"Commit `{sha[:12]}` is blocked until the reviewer approves this exact revision.",
-            "The Claude reviewer owns this thread; authors must not resolve it.",
+            "This standalone lifecycle comment is updated after the exact-head review.",
         ]
     )
-    current = marker_thread(all_threads, PENDING_MARKER)
+    current = next(
+        (comment for comment in issue_comments if PENDING_MARKER in (comment.get("body") or "")),
+        None,
+    )
     if current:
-        update_root_comment(client, current, body)
-        set_resolved(client, current, False)
+        client.rest("PATCH", f"/issues/comments/{current['id']}", {"body": body})
     else:
-        create_thread_or_review(client, pr, sha, anchor, body)
+        client.rest("POST", f"/issues/{pr}/comments", {"body": body})
+
+
+def remove_legacy_pending_threads(client: GitHub, all_threads: list[dict[str, Any]]) -> None:
+    """Remove obsolete inline lifecycle markers; inline threads are findings only."""
+    for thread in all_threads:
+        roots = thread["comments"]["nodes"]
+        if not any(LEGACY_PENDING_MARKER in (comment.get("body") or "") for comment in roots):
+            continue
+        comment_id = roots[0]["databaseId"]
+        client.rest("DELETE", f"/pulls/comments/{comment_id}")
 
 
 def block_exact_head(client: GitHub, pr: int, sha: str, forced_human_review: bool) -> None:
@@ -265,10 +278,10 @@ def block_exact_head(client: GitHub, pr: int, sha: str, forced_human_review: boo
         raise PublishError(
             "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
         )
-    files = list_pages(client, f"/pulls/{pr}/files", limit=3)
-    _right, _left, fallback, _anchors_truncated = diff_anchors(files)
+    issue_comments = list_pages(client, f"/issues/{pr}/comments")
+    ensure_pending_comment(client, pr, sha, issue_comments)
     all_threads = threads(client, pr)
-    ensure_pending(client, pr, sha, all_threads, fallback)
+    remove_legacy_pending_threads(client, all_threads)
     # Narrow the ordinary-run TOCTOU window before changing pending state. A
     # hold added while ensure_pending was running must win this race.
     if "needs-human" in labels(client, pr) and not forced_human_review:
@@ -489,17 +502,28 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         # unrelated early line from a partially scanned diff.
         fallback = None
     all_threads = threads(client, args.pr)
-    pending = marker_thread(all_threads, PENDING_MARKER)
+    pending = next(
+        (comment for comment in issue_comments if PENDING_MARKER in (comment.get("body") or "")),
+        None,
+    )
     approved = review["verdict"] == "APPROVED"
     if approved:
-        require_publish_authorization(client, args.pr, forced_human_review, "approval thread mutation")
+        require_publish_authorization(client, args.pr, forced_human_review, "approval state mutation")
         if pending:
-            update_root_comment(
-                client,
-                pending,
-                "\n".join([PENDING_MARKER, "### ✅ Claude approved", "", f"Approved exact commit `{args.sha}` in round {round_number}."]),
+            client.rest(
+                "PATCH",
+                f"/issues/comments/{pending['id']}",
+                {
+                    "body": "\n".join(
+                        [
+                            PENDING_MARKER,
+                            "### ✅ Claude approved",
+                            "",
+                            f"Approved exact commit `{args.sha}` in round {round_number}.",
+                        ]
+                    )
+                },
             )
-            set_resolved(client, pending, True)
         for thread in all_threads:
             if any(FINDING_MARKER in (comment.get("body") or "") for comment in thread["comments"]["nodes"]):
                 set_resolved(client, thread, True)
@@ -507,9 +531,6 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         set_labels(client, args.pr, {"claude:approved"}, {"claude:changes-requested", "needs-human"})
         return
 
-    require_publish_authorization(client, args.pr, forced_human_review, "pending thread mutation")
-    if pending:
-        set_resolved(client, pending, False)
     current_markers = {
         finding_marker(finding, args.sha)
         for finding in findings

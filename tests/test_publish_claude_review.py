@@ -279,6 +279,33 @@ class PublishClaudeReviewTests(unittest.TestCase):
                 publisher.block_exact_head(client, 4, "a" * 40, False)
         set_labels.assert_called_once_with(client, 4, set(), {"claude:approved"})
 
+    def test_pending_state_is_a_standalone_comment_and_legacy_inline_is_removed(self):
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                return {}
+
+        client = Client()
+        publisher.ensure_pending_comment(client, 4, "a" * 40, [])
+        self.assertEqual(client.calls[0][0:2], ("POST", "/issues/4/comments"))
+        self.assertNotIn("thread", client.calls[0][2]["body"].lower())
+
+        legacy = {
+            "comments": {
+                "nodes": [
+                    {
+                        "databaseId": 99,
+                        "body": f"{publisher.LEGACY_PENDING_MARKER}\nlegacy inline state",
+                    }
+                ]
+            }
+        }
+        publisher.remove_legacy_pending_threads(client, [legacy])
+        self.assertEqual(client.calls[1][0:2], ("DELETE", "/pulls/comments/99"))
+
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):
