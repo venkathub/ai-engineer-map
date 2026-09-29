@@ -1,48 +1,51 @@
-# Embeddings
+# Embeddings and coordinate compatibility
 
-## Why they matter
+## Why it matters
 
-Embeddings map an input to a fixed-width vector. In retrieval systems, nearby vectors are treated as candidates for semantic relevance. The vector is useful evidence for ranking; it is not a human-readable explanation and does not prove that two texts make the same claim.
+A vector comparison is meaningful only when both vectors use compatible coordinates. Mixing representations can silently degrade retrieval even when their dimensions match. This lesson makes that failure visible without downloading a model.
 
 ## Mental model
 
-An embedding model is a learned coordinate system. The coordinates have meaning only in relation to other outputs from the same compatible model and configuration. Changing models is therefore a data migration, not a harmless dependency update.
+The local encoder counts words against a shared ordered vocabulary. It is a bag-of-words teaching representation, not a learned semantic embedding. Cosine measures the angle between vectors: the dot product divided by the product of their lengths. Scaling a nonzero vector changes its magnitude but not its cosine with the original.
 
-Cosine similarity compares direction:
+## Worked example
 
-```text
-cos(a, b) = (a · b) / (||a|| ||b||)
-```
+~~~python
+from labs.rag_path import encode, cosine
+old = encode("refund", ["refund", "receipt"])
+new = encode("refund", ["receipt", "refund"])
+assert cosine(old, new) == 0
+assert cosine(new, new) == 1
+~~~
 
-## Production considerations
+Both vectors describe exactly the same word and both have two dimensions. Their cosine is zero because their coordinate meanings differ. Re-encoding both sides with the new vocabulary restores comparability. Learned embedding migrations have the same compatibility concern even though coordinates are not named words.
 
-- Store the embedding model and version beside every vector.
-- Normalize consistently if the selected similarity function expects it.
-- Re-embed the comparison corpus when moving to an incompatible model.
-- Evaluate retrieval on representative queries; geometric closeness is not product relevance.
-- Never use similarity as an authorization decision.
+## Guided experiment
 
-## Failure modes
+~~~sh
+./run.sh hoe run embeddings
+./run.sh hoe verify embeddings
+~~~
 
-- Mixed embedding versions in one index
-- Truncated or poorly parsed source text
-- Domain language missing from the evaluation set
-- Nearly identical boilerplate dominating results
-- Treating a similarity score as calibrated confidence
+Expect identical=1, orthogonal=0, scaled=1, and zero=0. The zero result is this implementation's explicit convention because cosine is undefined when either norm is zero. Inspect the dimension-mismatch test and the same-length coordinate-migration test. Add repeated words and observe the effect on direction.
 
-## Exercise
+## Production trade-offs and failure cases
 
-Complete the cosine-similarity implementation in [`labs/rag-retrieval`](../../labs/rag-retrieval/README.md), then explain why the highest-scoring result can still be unsuitable evidence.
+A bag-of-words encoder misses synonyms and word order; this is useful for debugging but limits recall. A learned encoder may retrieve paraphrases, yet similarity remains a ranking signal rather than proof of support. Store model identifier, tokenizer/configuration, dimensions, and normalization with an index. During migration, rebuild documents and queries together or maintain two separately evaluated indexes. Never use similarity to decide authorization.
+
+## Independent challenge
+
+Add a versioned vocabulary wrapper that rejects comparisons across vocabulary hashes, including equal-dimensional vectors. Compare raw counts with binary word presence on three queries. Record whether the result changes and explain which failure the representation cannot fix.
 
 ## Knowledge check
 
-1. Why must a model change be treated as a migration?
-2. What does cosine similarity ignore?
-3. Which product metric would show whether embeddings help retrieval?
+Does matching dimension imply compatibility? No; the coordinate-migration example is a counterexample.
+
+Does cosine one mean two passages assert the same fact? No; bag-of-words can ignore negation and word order, and learned similarity is not entailment.
 
 ## References
 
-- [Sentence Transformers: Semantic Textual Similarity](https://sbert.net/docs/sentence_transformer/usage/semantic_textual_similarity.html)
-- [pgvector distance functions](https://github.com/pgvector/pgvector)
+- [Sentence Transformers retrieval and reranking](https://www.sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html)
+- [Runnable baseline](../../labs/rag_path.py)
 
-Last technically reviewed: 2026-09-29.
+Technical review: 2026-09-30.

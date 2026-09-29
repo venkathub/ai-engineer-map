@@ -1,3 +1,5 @@
+import { tutorialCatalog, renderTutorial } from "./tutorials.js";
+
 const STORE_KEY = "ai-map-progress-v2";
 const completed = new Set(JSON.parse(localStorage.getItem(STORE_KEY) || "[]"));
 const page = document.body.dataset.page;
@@ -240,30 +242,76 @@ function renderConceptPage() {
   $("#concept-complete").addEventListener("click", () => { toggleDone(item.id); renderConceptPage(); });
 }
 
-function renderLessonPage() {
+async function renderLessonPage() {
   const item = concept(params.get("id")) || concept("embeddings");
-  const lane = track(item.track);
-  const refs = conceptRefs(item);
-  const next = nextConcept(item);
   document.title = `${item.title} lesson · AI Engineer Map`;
-  $("#lesson-track-list").innerHTML = trackConcepts(item.track).map((entry) => `<a class="${entry.id === item.id ? "active" : ""}" href="${queryLink("lesson.html",entry.id)}"><span>${String(entry.order).padStart(2,"0")}</span>${escapeHtml(entry.title)}${completed.has(entry.id) ? " ✓" : ""}</a>`).join("");
-  const mechanism = `${item.title} is best understood as an engineering boundary: inputs are transformed under explicit constraints, useful evidence is preserved, and failure remains observable. The durable skill is not memorizing one framework—it is knowing what the component guarantees, what it cannot guarantee, and how to measure it.`;
-  $("#lesson-article").innerHTML = `
-    <p class="overline">${escapeHtml(lane.title)} · ${item.minutes} minutes</p><h1>${escapeHtml(item.title)}</h1><p class="lede">${escapeHtml(item.summary)}</p>
-    <div class="lesson-meta"><span>${item.level}</span><span>Reviewed ${curriculum.reviewedAt}</span><span>${refs.length} primary sources</span></div>
-    <section id="mental-model"><h2>1. Mental model</h2><p>${escapeHtml(mechanism)}</p><blockquote>Production rule: make the contract explicit, retain provenance, and test the failure path before optimizing the happy path.</blockquote></section>
-    <section id="mechanism"><h2>2. Mechanism</h2><p>Start with a small deterministic baseline. Record the input, configuration, intermediate state, output, latency, and cost. Replace one piece at a time and compare against a representative evaluation set.</p><pre><code>result = component.run(input, policy=versioned_policy)
-assert result.provenance
-assert result.status in {"ok", "insufficient_evidence", "blocked"}
-trace.record(result.metrics)</code></pre></section>
-    <section id="production"><h2>3. Production pattern</h2><div class="production-grid"><article><b>Contract</b><p>Version inputs, outputs, policy, and artifacts.</p></article><article><b>Evidence</b><p>Capture traces and task-specific quality measures.</p></article><article><b>Control</b><p>Bound cost, latency, data access, and external effects.</p></article></div></section>
-    <section id="failures"><h2>4. Failure modes</h2><ul><li>Testing only examples that shaped the implementation.</li><li>Hiding partial failure behind retries or fluent model output.</li><li>Coupling product behavior to one provider-specific payload.</li><li>Logging sensitive inputs without an explicit data policy.</li></ul></section>
-    <section id="exercise"><h2>5. Guided exercise</h2><div class="exercise-callout"><span>${exerciseProfile(item).label}</span><p>${escapeHtml(item.exercise)}</p><a href="${queryLink("lab.html",item.id)}">Open lab workspace →</a></div></section>
-    <section id="check"><h2>6. Knowledge check</h2><details><summary>What evidence would prove this component works?</summary><p>A representative dataset, a task-specific metric or deterministic assertion, traceable inputs and versions, and a documented failure case.</p></details><details><summary>What belongs outside the model?</summary><p>Authorization, secrets, irreversible effects, schema validation, budgets, and other deterministic policy enforcement.</p></details></section>
-    <section id="references"><h2>7. Primary references</h2><ul class="reference-list">${refs.map((ref) => `<li><a href="${ref.url}" target="_blank" rel="noreferrer">${escapeHtml(ref.title)} ↗</a></li>`).join("")}</ul></section>
-    ${next ? `<a class="next-lesson" href="${queryLink("lesson.html",next.id)}"><span>Next concept</span><b>${escapeHtml(next.title)} →</b></a>` : ""}`;
-  $("#lesson-toc").innerHTML = ["mental-model","mechanism","production","failures","exercise","check","references"].map((id, index) => `<a href="#${id}">0${index + 1} ${id.replace("-", " ")}</a>`).join("") + `<button class="button primary wide" id="lesson-complete">${completed.has(item.id) ? "Completed ✓" : "Complete lesson"}</button>`;
-  $("#lesson-complete").addEventListener("click", () => { toggleDone(item.id); renderLessonPage(); });
+  const article = $("#lesson-article");
+  article.innerHTML = '<p role="status">Loading tutorial…</p>';
+  try {
+    const catalog = await tutorialCatalog();
+    const entry = catalog.lessons[item.id];
+    const path = entry ? catalog.path : trackConcepts(item.track).map(topic => topic.id);
+    $("#lesson-track-list").innerHTML = path.map((id, index) => {
+      const topic = concept(id);
+      return `<a class="${id === item.id ? "active" : ""}" href="${queryLink("lesson.html", id)}"><span>${index + 1}</span>${escapeHtml(topic.title)}</a>`;
+    }).join("");
+    $(".sidebar-label", $(".lesson-sidebar")).textContent = entry ? "Local RAG learning path" : "This track · outlines";
+    const prerequisites = item.prerequisites.map(concept);
+    const header = `<p class="overline">${escapeHtml(track(item.track).title)}</p><h1>${escapeHtml(item.title)}</h1><p class="lede">${escapeHtml(item.summary)}</p>`;
+    const prereqHtml = `<div class="tutorial-prerequisites"><h2>Before you start</h2><p>Python 3.10+ and a repository checkout for the local experiments. Prerequisite concepts:</p>${prerequisites.length ? `<ul>${prerequisites.map(topic => `<li><a href="${queryLink("concept.html", topic.id)}">${escapeHtml(topic.title)}</a></li>`).join("")}</ul>` : "<p>No prerequisite concepts.</p>"}</div>`;
+    if (!entry) {
+      article.innerHTML = header + `<div class="tutorial-notice" data-content-status="outline"><strong>Curriculum outline — full tutorial not yet authored</strong><p>This topic currently has outcomes, an exercise brief, and sources. Topic-specific explanations, worked examples, and runnable tutorial content are still pending.</p><a href="lesson.html?id=document-ingestion">Start the authored RAG learning path →</a></div><section><h2>Learning outcomes</h2><ul>${item.outcomes.map(text => `<li>${escapeHtml(text)}</li>`).join("")}</ul><h2>Exercise brief</h2><p>${escapeHtml(item.exercise)}</p><a href="${queryLink("lab.html", item.id)}">Open exercise scaffold →</a></section><section><h2>Primary reading</h2><ul>${conceptRefs(item).map(ref => `<li><a href="${escapeHtml(ref.url)}" rel="noreferrer">${escapeHtml(ref.title)}</a></li>`).join("")}</ul></section>`;
+      $("#lesson-toc").innerHTML = '<p>Full tutorial pending.</p>';
+      return;
+    }
+    const response = await fetch(entry.path);
+    if (!response.ok) throw new Error("Tutorial unavailable");
+    const rendered = renderTutorial(await response.text(), new URL(entry.path, location.href).href);
+    const index = path.indexOf(item.id);
+    const next = concept(path[index + 1]);
+    article.innerHTML = header + `<div class="lesson-meta" data-content-status="authored"><span>Authored tutorial · ${index + 1}/${path.length}</span><span>Reviewed ${escapeHtml(entry.reviewedAt)}</span><a href="${entry.path}">Markdown source</a></div><details class="tutorial-path"><summary>Browse the RAG learning path</summary><ol>${path.map(id => `<li><a href="${queryLink("lesson.html", id)}" ${id === item.id ? 'aria-current="page"' : ""}>${escapeHtml(concept(id).title)}</a></li>`).join("")}</ol></details>` + prereqHtml + rendered.html + `<section class="tutorial-actions"><a class="button primary" href="${queryLink("lab.html", item.id)}">Open runnable lab →</a><button class="button ghost" id="lesson-complete">${completed.has(item.id) ? "Marked complete ✓" : "Mark complete after verifying evidence"}</button></section>${next ? `<a class="next-lesson" href="${queryLink("lesson.html", next.id)}"><span>Next in the RAG path</span><b>${escapeHtml(next.title)} →</b></a>` : '<p>You reached the end of the RAG path. Review your experiment outputs and independent challenges before claiming completion.</p>'}`;
+    $("#lesson-toc").innerHTML = rendered.headings.map(h => `<a href="#${h.id}">${escapeHtml(h.title)}</a>`).join("");
+    $("#lesson-complete").addEventListener("click", (event) => {
+      toggleDone(item.id);
+      event.currentTarget.textContent = completed.has(item.id) ? "Marked complete ✓" : "Mark complete after verifying evidence";
+    });
+  } catch {
+    article.innerHTML = '<h1>Tutorial unavailable</h1><p role="status">The authored content could not be loaded. Reload to retry; this page has not substituted a generic lesson.</p><a href="roadmap.html">Return to roadmap</a>';
+    $("#lesson-toc").innerHTML = "";
+  }
+}
+
+async function loadLabBaseline(item, profile) {
+  const status = $("#lab-content-status");
+  const initial = $("#code-editor").value;
+  try {
+    const catalog = await tutorialCatalog();
+    const entry = catalog.lessons[item.id];
+    if (!entry) {
+      status.textContent = "Exercise scaffold: a full tutorial and working baseline are not yet authored for this topic.";
+      return;
+    }
+    const response = await fetch(entry.starter);
+    if (!response.ok) throw new Error("Baseline unavailable");
+    const source = await response.text();
+    if ($("#code-editor").value === initial) {
+      $("#code-editor").value = source;
+      profile.filename = entry.starter.split("/").at(-1);
+      $("#editor-filename").textContent = profile.filename;
+      status.textContent = "Working baseline loaded. Follow the tutorial experiment, modify the relevant function, save the file under labs/, then run and verify in your terminal.";
+    } else {
+      status.textContent = "Your draft was preserved. Download the working baseline below to follow the tutorial.";
+    }
+    $("#lab-source-links").innerHTML = `<a href="${queryLink("lesson.html", item.id)}">Read the full tutorial →</a><a href="${entry.starter}" download>Download working baseline</a><button class="button ghost" id="download-artifact">Save editor artifact</button>`;
+    $("#download-artifact").addEventListener("click", () => {
+      const url = URL.createObjectURL(new Blob([$("#code-editor").value], {type:"text/plain"}));
+      const link = document.createElement("a");
+      link.href = url; link.download = profile.filename; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+  } catch {
+    status.textContent = "Tutorial or baseline unavailable. Your draft remains usable; reload to retry.";
+  }
 }
 
 // Display argv as a POSIX command without interpreting curriculum strings as shell code.
@@ -331,6 +379,8 @@ function renderLabPage() {
   renderLabExecution(item);
   $("#lab-task").innerHTML = `<span class="overline">${profile.label} exercise</span><h1>${escapeHtml(item.exercise)}</h1><p>Every topic uses the same evidence contract, adapted to its artifact: complete the work, satisfy both learning outcomes, preserve provenance, and document a failure and trade-off.</p><ol><li>Read the objective and acceptance checks.</li><li>Complete the topic-specific starter artifact.</li><li>Validate each item with observable evidence.</li><li>Record a failure mode and production trade-off.</li></ol>`;
   $("#code-editor").value = profile.starter;
+  $("#lab-task").insertAdjacentHTML("beforeend", '<p id="lab-content-status" role="status">Loading tutorial baseline…</p><div id="lab-source-links" class="lab-source-links"></div>');
+  loadLabBaseline(item, profile);
   $("#test-list").innerHTML = profile.checks.map((test) => `<li><i></i>${escapeHtml(test)}</li>`).join("");
   $("#run-tests").addEventListener("click", () => {
     $("#terminal").textContent = `Manual review checklist for ${profile.filename}\n\n${profile.checks.map((check) => `□ ${check}`).join("\n")}\n\nNo code was executed or verified. Save your artifact and attach real output, measurements, or screenshots. Record completion in the roadmap after verifying your evidence.`;

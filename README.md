@@ -4,16 +4,33 @@ An open, source-backed learning environment for production AI engineering. The 2
 
 ## What is included
 
-- A complete landing page, roadmap explorer, concept overview, lesson reader, and lab workspace
+- Implemented landing page, roadmap explorer, concept overview, lesson reader, and lab workspace
 - A visual, searchable curriculum with 104 dependency-linked concepts
 - Track and completion filters
 - Local progress tracking (no account required)
 - Directed dependency view for the selected topic, with keyboard navigation and text relationship labels
 - Machine-readable curriculum metadata
 - Coverage from software, data, MLOps, classic ML and transformers through RAG, agents, MCP, A2A, applied ML domains, multimodal/realtime systems, evaluation, safety, fine-tuning, inference, and production
-- A unique Inspect, Modify, or Build exercise for every topic, with a topic-specific starter artifact and evidence checklist
+- An exercise brief and evidence checklist for every topic; working baselines for the authored RAG path and scaffolds elsewhere
 - A dependency-free retrieval lab with automated tests
 - Validation for coverage, references, prerequisites, dependency cycles, and review freshness
+
+## Course content status
+
+The 104-topic map is curriculum coverage, not 104 finished tutorials. Eleven topics now have authored Markdown tutorials wired into the lesson reader, working local experiments, and topic-specific automated verification: ingestion, chunking, embeddings, vector search, hybrid retrieval, query transformation, reranking, grounded answers, structured retrieval, quality/permissions, and RAG evaluation. The remaining 93 lesson pages explicitly show an outline status. Execution profiles currently cover 11 automated topics, 87 guided topics, and 6 setup-ready API/GPU topics.
+
+Start at `lesson.html?id=document-ingestion`. The reader provides prerequisites, worked examples, guided modifications, failure cases, independent challenges, knowledge checks, and primary references. `content/tutorials.json` defines the path, authored files, baseline, and test mapping. The lab loads the real `labs/rag_path.py` baseline and lets you save an edited artifact; save it into your checkout's `labs/` directory before running commands. Browser edits are not automatically persisted or executed.
+
+```bash
+./run.sh hoe run document-ingestion
+./run.sh hoe verify document-ingestion
+./run.sh hoe run rag-evals
+./run.sh hoe verify rag-evals
+```
+
+These are transparent, deterministic teaching experiments. Bag-of-words vectors are not semantic embeddings, prefix candidate pruning is not a production ANN implementation, and extractive answers are not an LLM. The three-case scorecard is a regression fixture, not a production quality estimate. Independent challenges require learners to extend the working baseline and preserve evidence.
+
+Optional reader regression: `node tests/tutorial-browser.cjs` with the site running and the same existing Playwright/Chrome setup used by the other browser tests.
 
 ## Run locally
 
@@ -89,7 +106,7 @@ The evidence and gap analysis behind the current scope is recorded in [docs/CURR
 
 ## Curriculum freshness
 
-The curriculum was technically reviewed on **2026-09-29**. Durable concepts are separated from provider-specific details, current protocol versions are named where relevant, and each track links to primary specifications or official documentation. “Complete” means complete role coverage for an AI engineer; the repository does not claim that a fast-moving research field can ever be permanently finished.
+The curriculum metadata records review on **2026-09-29**; the authored RAG tutorials record their own **2026-09-30** review. A review date on the topic map does not mean a full tutorial exists. Durable concepts are separated from provider-specific details, and each track links to primary specifications or official documentation.
 
 ## Pages
 

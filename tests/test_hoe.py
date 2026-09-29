@@ -128,7 +128,7 @@ class HoeExecutionTests(unittest.TestCase):
                 result = hoe.execute_topic(topic, "run", allow_billable=False)
         self.assertEqual(result, 0)
         run.assert_called_once_with(
-            ["python3", "labs/rag-retrieval/exercise.py"],
+            ["python3", "labs/rag_path.py", "embeddings"],
             cwd=ROOT,
             check=False,
         )

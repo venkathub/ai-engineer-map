@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "title": "Build and evaluate a local RAG pipeline",
+  "path": [
+    "document-ingestion",
+    "chunking",
+    "embeddings",
+    "vector-indexes",
+    "hybrid-search",
+    "query-transform",
+    "reranking",
+    "grounded-generation",
+    "structured-retrieval",
+    "rag-quality",
+    "rag-evals"
+  ],
+  "lessons": {
+    "document-ingestion": {
+      "path": "content/rag/document-ingestion.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.IngestionTests"
+    },
+    "chunking": {
+      "path": "content/rag/chunking.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.ChunkingTests"
+    },
+    "embeddings": {
+      "path": "content/rag/embeddings.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.EmbeddingTests"
+    },
+    "vector-indexes": {
+      "path": "content/rag/vector-search.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.VectorIndexTests"
+    },
+    "hybrid-search": {
+      "path": "content/rag/hybrid-search.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.HybridTests"
+    },
+    "query-transform": {
+      "path": "content/rag/query-transform.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.QueryTests"
+    },
+    "reranking": {
+      "path": "content/rag/reranking.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.RerankingTests"
+    },
+    "grounded-generation": {
+      "path": "content/rag/rag-pipeline.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.GroundingTests"
+    },
+    "structured-retrieval": {
+      "path": "content/rag/structured-retrieval.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.StructuredTests"
+    },
+    "rag-quality": {
+      "path": "content/rag/rag-quality.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.QualityTests"
+    },
+    "rag-evals": {
+      "path": "content/rag/rag-evals.md",
+      "starter": "labs/rag_path.py",
+      "reviewedAt": "2026-09-30",
+      "verifyTest": "tests.test_rag_path.EvaluationTests"
+    }
+  }
+}

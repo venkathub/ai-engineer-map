@@ -13,7 +13,8 @@ Build a free, source-backed, hands-on curriculum for engineers who need to under
 - `assets/styles.css`: shared design tokens and responsive page system.
 - `curriculum/concepts.json`: single source of truth for tracks, concepts, dependencies, exercises, references, and review date.
 - `curriculum/hoe.json`: execution profiles and the required one-to-one topic assignment; `hoe.schema.json` documents its versioned shape.
-- `content/`: long-form authored material that complements the generated lesson experience.
+- `content/tutorials.json`: authored lesson/path manifest; unmapped lessons explicitly remain outlines.
+- `content/rag/`: Markdown tutorials loaded by the lesson reader through the safe subset renderer in `assets/tutorials.js`.
 - `labs/`: runnable, dependency-free learning exercises.
 - `scripts/validate_curriculum.py`: schema, coverage, freshness, reference, and graph validation.
 - `tests/`: Python unit and curriculum coverage tests.
