@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A connected, hands-on roadmap for production AI engineering." />
+    <title>AI Engineer Map</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+    <script type="module" src="assets/app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="AI Engineer Map home">
+        <span class="brand-mark" aria-hidden="true">A<span>I</span></span>
+        <span>AI Engineer Map</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#roadmap">Roadmap</a>
+        <a href="#method">Method</a>
+        <a href="https://github.com/venkathub/ai-engineer-map">GitHub ↗</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <p class="eyebrow">Open curriculum · concepts → systems</p>
+        <h1>Learn the whole system,<br /><em>then prove you can build it.</em></h1>
+        <p class="hero-copy">
+          A connected map for engineers building reliable AI products. Follow prerequisites, inspect the mechanism,
+          practise the failure path, and ship working artifacts.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#roadmap">Explore the map</a>
+          <a class="button secondary" href="labs/rag-retrieval/README.md">Start the first lab</a>
+        </div>
+        <dl class="stats" aria-label="Curriculum statistics">
+          <div><dt id="concept-count">—</dt><dd>mapped concepts</dd></div>
+          <div><dt id="published-count">—</dt><dd>published now</dd></div>
+          <div><dt id="minute-count">—</dt><dd>guided minutes</dd></div>
+        </dl>
+      </section>
+
+      <section class="roadmap-section" id="roadmap">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Your learning map</p>
+            <h2>Follow dependencies, not hype.</h2>
+          </div>
+          <p>Choose a track or search for a concept. Select a card to see outcomes, prerequisites, and the exercise.</p>
+        </div>
+
+        <div class="toolbar" aria-label="Roadmap controls">
+          <label class="search-field">
+            <span class="sr-only">Search concepts</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z" /></svg>
+            <input id="search" type="search" placeholder="Search concepts, outcomes, or tracks…" />
+          </label>
+          <div id="track-filters" class="filter-list" aria-label="Filter by track"></div>
+          <label class="completion-filter"><input id="hide-complete" type="checkbox" /> Hide completed</label>
+        </div>
+
+        <div class="map-shell">
+          <div id="roadmap-grid" class="roadmap-grid" aria-live="polite"></div>
+          <aside id="concept-panel" class="concept-panel" aria-live="polite">
+            <p class="panel-kicker">Select a concept</p>
+            <h3>See how the pieces connect.</h3>
+            <p>Each card exposes the mental model, learning outcomes, prerequisites, exercise, and recommended next step.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section class="method-section" id="method">
+        <div>
+          <p class="eyebrow">The learning contract</p>
+          <h2>Every topic ends in evidence.</h2>
+        </div>
+        <ol class="method-list">
+          <li><span>01</span><div><h3>Understand</h3><p>Build a durable mental model from mechanism, constraints, and primary sources.</p></div></li>
+          <li><span>02</span><div><h3>Inspect</h3><p>Observe real tokens, traces, retrieval results, costs, and failure states.</p></div></li>
+          <li><span>03</span><div><h3>Modify</h3><p>Complete a focused implementation and make one trade-off visible.</p></div></li>
+          <li><span>04</span><div><h3>Build</h3><p>Deliver an independently tested artifact that belongs in a portfolio.</p></div></li>
+        </ol>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built in public for deliberate technical practice.</p>
+      <p><a href="PLAN.md">Read the plan</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+    </footer>
+  </body>
+</html>

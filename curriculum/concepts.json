@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "tracks": [
+    { "id": "foundations", "title": "Engineering foundations", "phase": "Build the base" },
+    { "id": "models", "title": "Models and inference", "phase": "Understand the engine" },
+    { "id": "context", "title": "Context engineering", "phase": "Control the input" },
+    { "id": "rag", "title": "Retrieval and RAG", "phase": "Ground the answer" },
+    { "id": "agents", "title": "Agents and tools", "phase": "Make systems act" },
+    { "id": "production", "title": "Evaluation and production", "phase": "Earn reliability" }
+  ],
+  "concepts": [
+    {
+      "id": "api-contracts", "title": "API contracts", "track": "foundations", "order": 1,
+      "level": "foundation", "minutes": 60, "status": "mapped",
+      "summary": "Design typed boundaries for model input, output, errors, and streaming events.",
+      "prerequisites": [],
+      "outcomes": ["Separate provider payloads from application contracts", "Model partial failure and streaming explicitly"],
+      "lesson": null, "exercise": null, "next": ["async-workflows", "model-apis"]
+    },
+    {
+      "id": "async-workflows", "title": "Async workflows", "track": "foundations", "order": 2,
+      "level": "foundation", "minutes": 75, "status": "mapped",
+      "summary": "Coordinate slow, unreliable network work with cancellation, timeouts, and backpressure.",
+      "prerequisites": ["api-contracts"],
+      "outcomes": ["Use concurrency without unbounded fan-out", "Propagate cancellation and timeout budgets"],
+      "lesson": null, "exercise": null, "next": ["reliable-jobs", "model-routing"]
+    },
+    {
+      "id": "reliable-jobs", "title": "Reliable background jobs", "track": "foundations", "order": 3,
+      "level": "intermediate", "minutes": 90, "status": "mapped",
+      "summary": "Make long-running ingestion and generation work retryable, observable, and idempotent.",
+      "prerequisites": ["async-workflows"],
+      "outcomes": ["Design idempotent handlers", "Choose retry and dead-letter policies"],
+      "lesson": null, "exercise": null, "next": ["document-ingestion", "production-observability"]
+    },
+    {
+      "id": "model-apis", "title": "Model APIs and tokens", "track": "models", "order": 1,
+      "level": "foundation", "minutes": 75, "status": "mapped",
+      "summary": "Understand messages, tokens, context limits, sampling, structured output, and streaming.",
+      "prerequisites": ["api-contracts"],
+      "outcomes": ["Estimate context and output cost", "Choose sampling and structured-output settings"],
+      "lesson": null, "exercise": null, "next": ["embeddings", "model-routing", "prompt-design"]
+    },
+    {
+      "id": "embeddings", "title": "Embeddings", "track": "models", "order": 2,
+      "level": "foundation", "minutes": 80, "status": "published",
+      "summary": "Represent meaning as vectors and reason about similarity, dimensions, and model boundaries.",
+      "prerequisites": ["model-apis"],
+      "outcomes": ["Explain what embedding similarity does and does not mean", "Calculate cosine similarity", "Identify embedding-version migration risks"],
+      "lesson": "content/rag/embeddings.md", "exercise": "labs/rag-retrieval/README.md", "next": ["vector-search", "chunking"]
+    },
+    {
+      "id": "model-routing", "title": "Model selection and routing", "track": "models", "order": 3,
+      "level": "intermediate", "minutes": 90, "status": "mapped",
+      "summary": "Route work by measured quality, latency, context, capabilities, and total cost.",
+      "prerequisites": ["model-apis", "async-workflows"],
+      "outcomes": ["Define a task-specific quality threshold", "Implement fallback without hiding failures"],
+      "lesson": null, "exercise": null, "next": ["evaluation-design", "production-observability"]
+    },
+    {
+      "id": "prompt-design", "title": "Prompt and output design", "track": "context", "order": 1,
+      "level": "foundation", "minutes": 75, "status": "mapped",
+      "summary": "Express an instruction, its evidence boundary, and a machine-checkable output contract.",
+      "prerequisites": ["model-apis"],
+      "outcomes": ["Separate instructions from untrusted content", "Prefer constrained schemas over fragile parsing"],
+      "lesson": null, "exercise": null, "next": ["context-assembly", "tool-calling"]
+    },
+    {
+      "id": "context-assembly", "title": "Context assembly", "track": "context", "order": 2,
+      "level": "intermediate", "minutes": 90, "status": "mapped",
+      "summary": "Select, order, label, and compress evidence within a finite context budget.",
+      "prerequisites": ["prompt-design"],
+      "outcomes": ["Allocate a context budget", "Preserve provenance through transformation"],
+      "lesson": null, "exercise": null, "next": ["rag-pipeline", "agent-state"]
+    },
+    {
+      "id": "prompt-injection", "title": "Prompt-injection boundaries", "track": "context", "order": 3,
+      "level": "advanced", "minutes": 100, "status": "mapped",
+      "summary": "Treat retrieved and tool-provided text as untrusted data, not authority.",
+      "prerequisites": ["context-assembly", "tool-calling"],
+      "outcomes": ["Map trust boundaries", "Enforce capabilities outside the model"],
+      "lesson": null, "exercise": null, "next": ["agent-reliability", "production-observability"]
+    },
+    {
+      "id": "document-ingestion", "title": "Document ingestion", "track": "rag", "order": 1,
+      "level": "foundation", "minutes": 90, "status": "mapped",
+      "summary": "Turn source documents into versioned, permission-aware, traceable records.",
+      "prerequisites": ["reliable-jobs"],
+      "outcomes": ["Preserve source identity and permissions", "Make ingestion resumable and idempotent"],
+      "lesson": null, "exercise": null, "next": ["chunking"]
+    },
+    {
+      "id": "chunking", "title": "Chunking", "track": "rag", "order": 2,
+      "level": "foundation", "minutes": 80, "status": "published",
+      "summary": "Split sources into retrievable evidence units without destroying meaning or provenance.",
+      "prerequisites": ["document-ingestion"],
+      "outcomes": ["Compare fixed and structure-aware chunking", "Measure boundary failures", "Retain useful metadata"],
+      "lesson": "content/rag/chunking.md", "exercise": "labs/rag-retrieval/README.md", "next": ["vector-search"]
+    },
+    {
+      "id": "vector-search", "title": "Vector and hybrid search", "track": "rag", "order": 3,
+      "level": "intermediate", "minutes": 110, "status": "published",
+      "summary": "Retrieve evidence by semantic and lexical signals, then combine results transparently.",
+      "prerequisites": ["embeddings", "chunking"],
+      "outcomes": ["Implement vector retrieval", "Explain when keyword search wins", "Fuse ranked result lists"],
+      "lesson": "content/rag/vector-search.md", "exercise": "labs/rag-retrieval/README.md", "next": ["rag-pipeline"]
+    },
+    {
+      "id": "rag-pipeline", "title": "Grounded answer pipeline", "track": "rag", "order": 4,
+      "level": "intermediate", "minutes": 120, "status": "published",
+      "summary": "Assemble retrieved evidence into answers whose claims can be traced to sources.",
+      "prerequisites": ["vector-search", "context-assembly"],
+      "outcomes": ["Separate retrieval from generation failures", "Produce claim-level citations", "Handle insufficient evidence"],
+      "lesson": "content/rag/rag-pipeline.md", "exercise": "labs/rag-retrieval/README.md", "next": ["evaluation-design"]
+    },
+    {
+      "id": "tool-calling", "title": "Tool calling", "track": "agents", "order": 1,
+      "level": "intermediate", "minutes": 90, "status": "mapped",
+      "summary": "Give models narrow, typed capabilities while application code remains in control.",
+      "prerequisites": ["prompt-design", "api-contracts"],
+      "outcomes": ["Design safe tool schemas", "Validate arguments and results outside the model"],
+      "lesson": null, "exercise": null, "next": ["agent-state"]
+    },
+    {
+      "id": "agent-state", "title": "Agent state and workflows", "track": "agents", "order": 2,
+      "level": "intermediate", "minutes": 110, "status": "mapped",
+      "summary": "Model agent execution as explicit, inspectable state transitions rather than a magic loop.",
+      "prerequisites": ["tool-calling", "context-assembly"],
+      "outcomes": ["Choose workflows over autonomy when possible", "Persist resumable execution state"],
+      "lesson": null, "exercise": null, "next": ["agent-reliability"]
+    },
+    {
+      "id": "agent-reliability", "title": "Approval and recovery", "track": "agents", "order": 3,
+      "level": "advanced", "minutes": 120, "status": "mapped",
+      "summary": "Bound agent authority with approvals, budgets, idempotency, and recoverable execution.",
+      "prerequisites": ["agent-state", "prompt-injection"],
+      "outcomes": ["Place approval gates at consequential actions", "Recover safely after partial execution"],
+      "lesson": null, "exercise": null, "next": ["production-observability"]
+    },
+    {
+      "id": "evaluation-design", "title": "Evaluation design", "track": "production", "order": 1,
+      "level": "intermediate", "minutes": 120, "status": "mapped",
+      "summary": "Turn product requirements and observed failures into representative test datasets and metrics.",
+      "prerequisites": ["rag-pipeline"],
+      "outcomes": ["Build a failure-derived evaluation set", "Use deterministic and model-based evaluators appropriately"],
+      "lesson": null, "exercise": null, "next": ["production-observability"]
+    },
+    {
+      "id": "production-observability", "title": "Production observability", "track": "production", "order": 2,
+      "level": "advanced", "minutes": 120, "status": "mapped",
+      "summary": "Trace quality, latency, cost, retrieval, tool calls, and user outcomes across a request.",
+      "prerequisites": ["evaluation-design", "reliable-jobs"],
+      "outcomes": ["Design a useful AI trace", "Detect quality and cost regressions"],
+      "lesson": null, "exercise": null, "next": ["deployment-gates"]
+    },
+    {
+      "id": "deployment-gates", "title": "Deployment and release gates", "track": "production", "order": 3,
+      "level": "advanced", "minutes": 120, "status": "mapped",
+      "summary": "Ship prompts, retrieval changes, tools, and models through versioned tests and gradual rollout.",
+      "prerequisites": ["production-observability"],
+      "outcomes": ["Version every behavior-changing artifact", "Define rollback and release-quality gates"],
+      "lesson": null, "exercise": null, "next": []
+    }
+  ]
+}
