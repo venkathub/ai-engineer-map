@@ -2,7 +2,7 @@ name: Claude PR Review
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, unlabeled]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   verify-head:
-    if: github.event.pull_request.draft == false && (github.event.action != 'unlabeled' || github.event.label.name == 'needs-human')
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -34,7 +34,7 @@ jobs:
 
   block:
     needs: verify-head
-    if: github.event.pull_request.draft == false && (github.event.action != 'unlabeled' || github.event.label.name == 'needs-human')
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -50,6 +50,7 @@ jobs:
 
       - name: Block the exact unreviewed head
         env:
+          CLAUDE_HUMAN_REREVIEW: ${{ github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'needs-human') }}
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
@@ -59,7 +60,7 @@ jobs:
 
   analyze:
     needs: block
-    if: github.event.pull_request.draft == false && (github.event.action != 'unlabeled' || github.event.label.name == 'needs-human')
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -207,7 +208,7 @@ jobs:
 
   publish:
     needs: analyze
-    if: always() && github.event.pull_request.draft == false && (github.event.action != 'unlabeled' || github.event.label.name == 'needs-human')
+    if: always() && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -228,6 +229,7 @@ jobs:
 
       - name: Publish current Claude review
         env:
+          CLAUDE_HUMAN_REREVIEW: ${{ github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'needs-human') }}
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           REVIEW_APPROVED: ${{ needs.analyze.outputs.approved }}
@@ -241,7 +243,7 @@ jobs:
 
   claude-review:
     needs: [verify-head, block, analyze, publish]
-    if: always() && github.event.pull_request.draft == false && (github.event.action != 'unlabeled' || github.event.label.name == 'needs-human')
+    if: always() && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions: {}
     steps:

@@ -408,7 +408,13 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     if review["verdict"] == "CHANGES_REQUESTED":
         summary.extend(["", "Address every open Claude finding thread and reply in each with the fix and test evidence. Do not resolve reviewer threads."])
         if round_number >= 2:
-            summary.extend(["", "Automatic review limit reached after two rounds; `needs-human` is now required."])
+            summary.extend(
+                [
+                    "",
+                    "Automatic review limit reached after two rounds; `needs-human` is now required. "
+                    "A maintainer must manually start Codex (or fix the blockers directly); pushing the fix commit starts the next Claude review.",
+                ]
+            )
     body = "\n".join(summary)[:60_000]
     if same_round:
         client.rest("PATCH", f"/issues/comments/{same_round['id']}", {"body": body})
@@ -494,12 +500,13 @@ def main() -> int:
     _right, _left, fallback, _anchors_truncated = diff_anchors(files)
     all_threads = threads(client, args.pr)
     if args.mode == "block":
+        forced_human_review = os.environ.get("CLAUDE_HUMAN_REREVIEW") == "true"
+        if "needs-human" in labels(client, args.pr) and not forced_human_review:
+            raise PublishError(
+                "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
+            )
         ensure_pending(client, args.pr, args.sha, all_threads, fallback)
         set_labels(client, args.pr, set(), {"claude:approved"})
-        if "needs-human" in labels(client, args.pr):
-            raise PublishError(
-                "automatic Claude review is paused by needs-human; a maintainer must remove the label to restart it"
-            )
         return 0
     if args.report is None or args.artifact is None:
         raise SystemExit("--report and --artifact are required in publish mode")

@@ -76,10 +76,15 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("pull-requests: write", block)
         self.assertIn("needs: block", analyze)
 
-    def test_human_hold_removal_is_the_only_label_re_review_trigger(self):
-        self.assertIn("ready_for_review, unlabeled", self.workflow)
-        condition = "github.event.action != 'unlabeled' || github.event.label.name == 'needs-human'"
-        self.assertGreaterEqual(self.workflow.count(condition), 5)
+    def test_new_fix_commit_is_the_human_re_review_trigger(self):
+        self.assertIn("opened, reopened, synchronize, ready_for_review", self.workflow)
+        self.assertNotIn("unlabeled", self.workflow)
+        forced = "github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'needs-human')"
+        self.assertEqual(self.workflow.count(forced), 2)
+        block = self.workflow.split("  block:", 1)[1].split("  analyze:", 1)[0]
+        publish = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
+        self.assertIn("CLAUDE_HUMAN_REREVIEW", block)
+        self.assertIn("CLAUDE_HUMAN_REREVIEW", publish)
 
     def test_validated_json_crosses_the_job_boundary(self):
         self.assertIn("--json-output claude-review.json", self.workflow)
