@@ -30,6 +30,12 @@ SECRET_VARIABLES = {
     "LLM_API_KEY",
     "JL_API_KEY",
 }
+REQUIRED_GPU_VARIABLES = {
+    "JARVISLABS_GPU",
+    "JARVISLABS_REGION",
+    "JARVISLABS_WORKLOAD",
+    "JARVISLABS_STORAGE_GB",
+}
 
 
 def validate() -> list[str]:
@@ -58,7 +64,7 @@ def validate() -> list[str]:
 
     env_text = (ROOT / ".env.example").read_text(encoding="utf-8")
     present = {line.split("=", 1)[0].strip() for line in env_text.splitlines() if "=" in line}
-    missing_variables = sorted(SECRET_VARIABLES - present)
+    missing_variables = sorted((SECRET_VARIABLES | REQUIRED_GPU_VARIABLES) - present)
     if missing_variables:
         errors.append(f".env.example is missing: {', '.join(missing_variables)}")
 

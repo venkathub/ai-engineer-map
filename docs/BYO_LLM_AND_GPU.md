@@ -41,6 +41,7 @@ Check the intended setup without creating anything:
 ```bash
 ./run.sh hoe check --provider compatible --gpu local
 ./run.sh hoe check --provider openai --gpu jarvislabs
+./run.sh hoe check --provider openai --gpu jarvislabs --live
 ```
 
 ## JarvisLabs quick path
@@ -58,7 +59,9 @@ For unattended automation, JarvisLabs supports `JL_API_KEY`; keep it in the secr
 
 The official managed-run workflow pauses the instance it creates when the job completes. Paused storage and shared storage can still incur cost. Inspect the JarvisLabs dashboard after every exercise and remove resources you no longer need. The documented shared filesystem is mounted at `/home/jl_fs`; use it only for artifacts that must survive instance replacement and never store plaintext API keys there.
 
-The smoke test validates CUDA visibility and a small matrix multiplication. It does not download a model or dataset, create a service, or expose a network port. For serving exercises, follow the official JarvisLabs vLLM or Ollama tutorial and restrict public access; both can present an OpenAI-compatible API to the `compatible` profile.
+Set `JARVISLABS_REGION` and `JARVISLABS_WORKLOAD` as well as `JARVISLABS_GPU`: the same GPU can have different container and VM availability in each region. The `--live` audit authenticates, checks whether the account is funded, matches the exact target against current inventory and reports instance counts. It intentionally omits the balance amount, identity, tokens, IPs, URLs, and SSH commands.
+
+The environment check validates CUDA visibility, driver/runtime metadata, GPU memory, a small matrix multiplication, writable working storage, shared-storage presence, and optional environment-variable names without printing their values. It does not download a model or dataset, create a service, or expose a network port. For serving exercises, follow the official JarvisLabs vLLM or Ollama tutorial and restrict public access; both can present an OpenAI-compatible API to the `compatible` profile.
 
 ## Topic execution catalog
 
