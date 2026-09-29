@@ -175,8 +175,9 @@ jobs:
 
       - name: Build subscription review report
         id: subscription-gate
-        # Step outcome=success selects this route. Missing or malformed
-        # structured_output still fails closed inside claude_review_gate.py.
+        # A successful action still passes through the structured-output gate.
+        # ERROR output is eligible for the API fallback; it is never published
+        # or treated as a subscription verdict.
         if: steps.subscription.outcome == 'success'
         env:
           CLAUDE_AUTH_CONFIGURED: "true"
@@ -190,8 +191,9 @@ jobs:
 
       - name: Review with Anthropic API fallback
         id: api-gate
-        # claude_review_decision.py assumes this is mutually exclusive with subscription-gate.
-        if: steps.subscription.outcome != 'success'
+        # Use the metered fallback when OAuth execution fails or its structured
+        # result is invalid. The route decision validates this exact contract.
+        if: steps.subscription.outcome != 'success' || steps.subscription-gate.outputs.verdict == 'ERROR'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL }}
@@ -200,9 +202,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
           SUBSCRIPTION_OUTCOME: ${{ steps.subscription.outcome }}
+          SUBSCRIPTION_VERDICT: ${{ steps.subscription-gate.outputs.verdict }}
         run: |
           if [ "$OAUTH_CONFIGURED" != "true" ]; then
             echo "Anthropic API fallback reason: subscription OAuth is not configured."
+          elif [ "$SUBSCRIPTION_VERDICT" = "ERROR" ]; then
+            echo "Anthropic API fallback reason: subscription output failed validation."
           else
             echo "Anthropic API fallback reason: subscription action outcome was ${SUBSCRIPTION_OUTCOME}."
           fi

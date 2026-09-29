@@ -27,6 +27,12 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
         )
         self.assertEqual(result, (False, "CHANGES_REQUESTED", 2))
 
+    def test_selects_api_after_invalid_subscription_output(self):
+        result = decision.select_result(
+            "success", "success", "false", "ERROR", "0", "success", "true", "APPROVED", "0"
+        )
+        self.assertEqual(result, (True, "APPROVED", 0))
+
     def test_rejects_missing_api_fallback_output(self):
         with self.assertRaises(decision.ReviewError):
             decision.select_result("failure", "skipped", "", "", "", "failure", "", "", "")
@@ -49,6 +55,12 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
         with self.assertRaises(decision.ReviewError):
             decision.select_result(
                 "success", "success", "true", "APPROVED", "0", "success", "false", "ERROR", "0"
+            )
+
+    def test_rejects_inconsistent_subscription_error_before_fallback(self):
+        with self.assertRaises(decision.ReviewError):
+            decision.select_result(
+                "success", "success", "true", "ERROR", "0", "success", "true", "APPROVED", "0"
             )
 
     def test_rejects_unset_api_outcome_after_subscription_success(self):

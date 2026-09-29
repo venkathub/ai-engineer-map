@@ -38,7 +38,8 @@ def select_result(
     for route, outcome in outcomes.items():
         if outcome not in VALID_STEP_OUTCOMES:
             raise ReviewError(f"{route} emitted an invalid GitHub Actions outcome")
-    if subscription_outcome == "success":
+    subscription_is_valid = subscription_outcome == "success" and subscription_verdict != "ERROR"
+    if subscription_is_valid:
         if subscription_gate_outcome != "success":
             raise ReviewError("subscription review succeeded but its report gate did not complete")
         if api_gate_outcome != "skipped":
@@ -49,7 +50,16 @@ def select_result(
             subscription_finding_count,
         )
     else:
-        if subscription_gate_outcome != "skipped":
+        if subscription_outcome == "success":
+            if subscription_gate_outcome != "success":
+                raise ReviewError("invalid subscription output did not complete its report gate")
+            if (subscription_approved, subscription_verdict, subscription_finding_count) != (
+                "false",
+                "ERROR",
+                "0",
+            ):
+                raise ReviewError("invalid subscription output emitted inconsistent error state")
+        elif subscription_gate_outcome != "skipped":
             raise ReviewError(
                 "subscription report gate completed without a successful subscription review"
             )
