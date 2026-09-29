@@ -63,7 +63,7 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
                 "success", "success", "true", "APPROVED", "0", "success", "false", "ERROR", "0"
             )
 
-    def test_rejects_inconsistent_subscription_error_before_fallback(self):
+    def test_rejects_subscription_error_verdict_with_inconsistent_state(self):
         with self.assertRaises(decision.ReviewError):
             decision.select_result(
                 "success", "success", "true", "ERROR", "0", "success", "true", "APPROVED", "0"
