@@ -324,7 +324,11 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
             (record for record in records if record[2] is None),
             key=lambda record: int(record[0].get("id", 0)),
         )
-        return legacy.index(same) + 1, same[0]
+        legacy_rounds = {
+            int(record[0].get("id", 0)): index
+            for index, record in enumerate(legacy, start=1)
+        }
+        return legacy_rounds[int(same[0].get("id", 0))], same[0]
     # Legacy records receive deterministic ID order only during one-time
     # migration. Explicit markers remain the sole counter after migration.
     legacy_count = sum(1 for record in records if record[2] is None)
@@ -506,6 +510,12 @@ def main() -> int:
                 "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
             )
         ensure_pending(client, args.pr, args.sha, all_threads, fallback)
+        # Close the ordinary-run TOCTOU window before changing approval state.
+        # A hold added while ensure_pending was running must win this race.
+        if "needs-human" in labels(client, args.pr) and not forced_human_review:
+            raise PublishError(
+                "needs-human was applied while blocking the head; refusing label mutation"
+            )
         set_labels(client, args.pr, set(), {"claude:approved"})
         return 0
     if args.report is None or args.artifact is None:

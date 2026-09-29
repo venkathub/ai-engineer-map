@@ -128,6 +128,10 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertEqual(publisher.review_round(comments, "a" * 40)[0], 1)
         self.assertEqual(publisher.review_round(comments, "b" * 40)[0], 2)
 
+    def test_legacy_round_lookup_does_not_use_list_index(self):
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("legacy.index(same)", source)
+
     def test_thread_inventory_fails_closed_when_graphql_is_truncated(self):
         class Client:
             repository = "owner/repo"

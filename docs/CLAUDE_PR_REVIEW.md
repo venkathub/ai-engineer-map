@@ -20,6 +20,8 @@ The API fallback accepts at most 300,000 bytes of diff text. Split larger change
 
 The runtime model check is the source of truth: before every fallback review, the script retrieves the configured ID through Anthropic's `/v1/models/{model_id}` endpoint and fails closed unless Anthropic confirms both the exact ID and a model record. The script currently defaults to `claude-sonnet-5`; it is reconfirmed on every fallback invocation, and the workflow log is the source for the latest confirmation timestamp. An Actions variable overrides it only when non-empty.
 
+Model verification makes one bounded provider request and deliberately does not retry. A transient timeout or provider 5xx therefore fails the freshness workflow or PR review closed; a later scheduled run or a maintainer-triggered rerun performs the next attempt. This avoids multiplying API traffic inside a security gate while keeping temporary provider failures visible.
+
 Local credentials may remain in the ignored `.env` for hands-on exercises, but the workflow reads encrypted Actions secrets. Never place either value in workflow YAML, pull-request text, logs, or repository variables. Rotate them according to the provider's policy. Each report identifies whether subscription OAuth or the API fallback produced its verdict without exposing credential details.
 
 ## Review and merge lifecycle
