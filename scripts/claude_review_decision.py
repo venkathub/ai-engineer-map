@@ -15,7 +15,9 @@ from claude_review_gate import (
     write_outputs,
 )
 
-VALID_VERDICTS = {"APPROVED", "CHANGES_REQUESTED", "ERROR"}
+# Selects API fallback and is never published as a terminal verdict.
+FALLBACK_SIGNAL = "ERROR"
+VALID_VERDICTS = {"APPROVED", "CHANGES_REQUESTED", FALLBACK_SIGNAL}
 VALID_STEP_OUTCOMES = {"success", "failure", "cancelled", "skipped"}
 
 
@@ -38,7 +40,12 @@ def select_result(
     for route, outcome in outcomes.items():
         if outcome not in VALID_STEP_OUTCOMES:
             raise ReviewError(f"{route} emitted an invalid GitHub Actions outcome")
-    if subscription_outcome == "success":
+    if subscription_outcome == "success" and subscription_verdict not in VALID_VERDICTS:
+        raise ReviewError("subscription gate emitted an invalid verdict")
+    subscription_is_valid = (
+        subscription_outcome == "success" and subscription_verdict != FALLBACK_SIGNAL
+    )
+    if subscription_is_valid:
         if subscription_gate_outcome != "success":
             raise ReviewError("subscription review succeeded but its report gate did not complete")
         if api_gate_outcome != "skipped":
@@ -49,7 +56,16 @@ def select_result(
             subscription_finding_count,
         )
     else:
-        if subscription_gate_outcome != "skipped":
+        if subscription_outcome == "success":
+            if subscription_gate_outcome != "success":
+                raise ReviewError("invalid subscription output did not complete its report gate")
+            if (subscription_approved, subscription_verdict, subscription_finding_count) != (
+                "false",
+                FALLBACK_SIGNAL,
+                "0",
+            ):
+                raise ReviewError("invalid subscription output emitted inconsistent error state")
+        elif subscription_gate_outcome != "skipped":
             raise ReviewError(
                 "subscription report gate completed without a successful subscription review"
             )
@@ -69,7 +85,7 @@ def select_result(
     valid_count = {
         "APPROVED": count == 0,
         "CHANGES_REQUESTED": 1 <= count <= MAX_FINDINGS,
-        "ERROR": count == 0,
+        FALLBACK_SIGNAL: count == 0,
     }[verdict]
     if not valid_count:
         raise ReviewError("selected review route emitted inconsistent verdict and finding count")
@@ -105,7 +121,7 @@ def main() -> int:
         if not args.report.is_file():
             raise ReviewError("selected review route did not create a report")
     except ReviewError as exc:
-        approved, verdict, finding_count = False, "ERROR", 0
+        approved, verdict, finding_count = False, FALLBACK_SIGNAL, 0
         reviewed_sha = os.environ.get("REVIEWED_SHA", "")
         report_written = write_failure_report(args.report, str(exc), reviewed_sha)
         if not report_written:

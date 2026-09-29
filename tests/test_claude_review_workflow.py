@@ -152,8 +152,8 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
             self.assertNotIn("pull-requests: write", job_permissions)
 
     def test_subscription_success_still_validates_structured_output(self):
-        self.assertIn("outcome=success selects this route", self.workflow)
-        self.assertIn("structured_output still fails closed", self.workflow)
+        self.assertIn("successful action still passes through the structured-output gate", self.workflow)
+        self.assertIn("ERROR output is eligible for the API fallback", self.workflow)
         self.assertIn("CLAUDE_REVIEW_JSON: ${{ steps.subscription.outputs.structured_output }}", self.workflow)
 
     def test_validated_json_crosses_the_job_boundary(self):
@@ -162,15 +162,18 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
 
     def test_route_conditions_match_decision_contract(self):
         self.assertIn(
-            "Step outcome=success selects this route",
+            "A successful action still passes through the structured-output gate",
             self.workflow,
         )
         self.assertIn("if: steps.subscription.outcome == 'success'", self.workflow)
         self.assertIn(
-            "claude_review_decision.py assumes this is mutually exclusive with subscription-gate",
+            "Use the metered fallback when OAuth execution fails",
             self.workflow,
         )
-        self.assertIn("if: steps.subscription.outcome != 'success'", self.workflow)
+        self.assertIn(
+            "if: steps.subscription.outcome != 'success' || steps.subscription-gate.outputs.verdict == 'ERROR'",
+            self.workflow,
+        )
 
     def test_model_freshness_runs_do_not_overlap(self):
         freshness = (
