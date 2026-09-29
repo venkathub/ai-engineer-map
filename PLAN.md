@@ -65,10 +65,11 @@ Every completed lesson contains:
 
 ### M2 — RAG vertical slice
 
-- 12–15 connected concepts
-- 8–10 exercises
-- Tested production-RAG project
-- References and review dates
+- [x] Eleven authored lessons spanning ingestion through a diagnostic RAG scorecard
+- [x] Eleven runnable local experiments with topic-specific verification
+- [x] Authored Markdown loading, prerequisites, path navigation, source links, and honest outline states
+- [x] References and per-tutorial review dates
+- [ ] Production-grade RAG portfolio project (the local teaching baseline is not this project)
 
 ### M3 — Learning experience
 
@@ -78,6 +79,8 @@ Every completed lesson contains:
 - [x] Visual dependency edges and keyboard-tested graph navigation (selected topic, prerequisites, and immediate dependents)
 
 ### M4 — Core tracks
+
+The checked items below describe topic-map coverage. Full tutorials are currently authored for the eleven-topic RAG path; the other 93 topics remain outlines and require authored lessons and exercises.
 
 - [x] LLM foundations, transformer mechanics, and model APIs
 - [x] Prompt, memory, long-context, and context engineering

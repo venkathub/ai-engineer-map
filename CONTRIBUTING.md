@@ -14,7 +14,15 @@ Every concept ID must also appear in `curriculum/hoe.json`. Assign `guided-brows
 
 Exercises must begin with an observable action and must be unique. They are rendered as Inspect, Modify, or Build work in the lab. A completion artifact needs real evidence for both outcomes, source/version provenance, one failure case, and one production trade-off; the browser checklist alone is not proof of completion.
 
-## Evidence standard
+## Author a tutorial
+
+Authored tutorials are mapped in `content/tutorials.json`. Use a local Markdown path under `content/rag/` for the current RAG path and a working Python baseline under `labs/`. Add the topic once to the ordered path and point `verifyTest` to its behavioral unittest class. Extend the content path convention and validator explicitly when adding another track.
+
+Each tutorial needs these sections: Why it matters, Mental model, Worked example, Guided experiment, Production trade-offs and failure cases, Independent challenge, Knowledge check, and References. Include at least 250 words of developed, topic-specific material, expected observations, runnable commands, and its actual technical-review date. Length is only a validation floor, not an editorial quality guarantee. The lesson reader adds curriculum prerequisites and path navigation. The supported Markdown subset is headings, paragraphs, unordered lists, fenced code, inline code, and links; raw HTML is escaped.
+
+Only add a tutorial mapping when the corresponding HOE profile runs the declared baseline with that topic ID and verifies it with the declared test class. Until then, the lesson must remain visibly labeled as an outline. Run `./run.sh check` and the optional reader browser regression. Do not replace a model, ANN index, or parser with a toy surrogate without stating that limitation.
+
+## Source evidence
 
 Prefer official documentation, standards, original research papers, and maintained source repositories. Secondary explanations may supplement but should not replace primary evidence for technical claims.
 

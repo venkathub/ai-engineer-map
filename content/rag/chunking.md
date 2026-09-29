@@ -1,41 +1,53 @@
-# Chunking
+# Chunking and provenance
 
 ## Why it matters
 
-Retrieval returns evidence units, not whole knowledge bases. Chunking decides what those units contain. A chunk that is too small can lose the condition that makes a statement true; one that is too large can bury the useful passage and consume the context budget.
+The answer "refunds require a receipt" is useless if splitting removes the word "require." Chunking determines the evidence units available to retrieval. A larger retrieval score cannot compensate for a boundary that drops the condition needed to answer correctly.
 
 ## Mental model
 
-Chunking is an information-boundary decision. Optimize for the smallest unit that remains independently useful for the target questions. Preserve source identity, section hierarchy, ordering, permissions, and offsets so the original evidence can be reconstructed.
+A chunk is a source span plus identity, version, tenant, and offsets. Its text should equal source.text[start:end]. In this lab offsets are Python string character positions, not UTF-8 byte offsets. Fixed windows bound size, overlapping windows repeat context, and paragraph boundaries preserve complete fixture facts. The paragraph splitter is deliberately line-based and does not parse headings, tables, or PDFs.
 
-## Strategies
+## Worked example
 
-- **Fixed windows:** simple and predictable, but may split semantic units.
-- **Structure-aware:** follows headings, paragraphs, tables, or code symbols.
-- **Recursive:** splits large sections through progressively smaller boundaries.
-- **Semantic:** uses model signals to detect topic changes; more complex to debug.
-- **Parent-child:** retrieves small units but returns a larger parent context.
+The fixture begins with "Refunds require the original receipt." A width of 32 characters splits that sentence. Paragraph splitting preserves it. An eight-character overlap still cannot fit a sentence longer than the window.
 
-## Failure modes
+~~~python
+from labs.rag_path import Source, chunk
+source = Source("policy", 2, "acme", "Refunds require the original receipt.")
+for part in chunk(source, "overlap", width=32, overlap=8):
+    assert part.text == source.text[part.start:part.end]
+    print(part.start, part.end, part.text)
+~~~
 
-- Answers require facts split across different chunks
-- Navigation and boilerplate are embedded repeatedly
-- Tables lose headers or row relationships
-- Overlap creates duplicate results
-- Access-control metadata is dropped during splitting
+The stable chunk ID includes tenant, source, version, and span. It is not safe to reuse it if a producer changes bytes without increasing the version; the ingestion digest must detect that contract violation.
 
-## Exercise
+## Guided experiment
 
-Extend the fixture in [`labs/rag-retrieval`](../../labs/rag-retrieval/README.md) with a structure-aware splitter. Add a test for a fact that crosses a naïve fixed-window boundary.
+~~~sh
+./run.sh hoe run chunking
+./run.sh hoe verify chunking
+~~~
+
+Inspect the fixed, overlap, and paragraph reports. Expected: intact_receipt_fact is false for the first two and true for paragraph splitting. Increase width to 40, then reduce it to 16. Count chunks, repeated characters, and complete answer-bearing facts. Do not choose a policy using chunk count alone.
+
+## Production trade-offs and failure cases
+
+Overlap spends index space and context budget on duplicated text. Paragraph chunks can become too large, so real parsers need size limits and structure-aware subdivision. A table row without its header can be misleading even if offsets are correct. Permission metadata must survive every split; applying authorization only to the original file leaves a dangerous gap downstream.
+
+## Independent challenge
+
+Implement a paragraph-first splitter with a maximum size and a documented fallback for long paragraphs. Add tests for empty text, a long paragraph, non-ASCII text, and complete source reconstruction. Measure boundary failures on at least three new questions. Preserve your policy parameters with the result.
 
 ## Knowledge check
 
-1. Why is maximum retrieval similarity not a sufficient chunking metric?
-2. When does parent-child retrieval help?
-3. Which metadata must survive chunking in a multi-tenant product?
+Does increasing overlap guarantee intact facts? No; facts longer than a window still cannot fit.
+
+Why retain offsets instead of only chunk text? Offsets permit source verification and precise citations, provided source version and offset convention are also recorded.
 
 ## References
 
-- [Unstructured: Chunking](https://docs.unstructured.io/open-source/core-functionality/chunking)
+- [Unstructured chunking strategies](https://docs.unstructured.io/open-source/core-functionality/chunking)
+- [Runnable baseline](../../labs/rag_path.py)
 
-Last technically reviewed: 2026-09-29.
+Technical review: 2026-09-30.

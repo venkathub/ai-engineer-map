@@ -6,6 +6,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import pathlib
+import re
 import sys
 from urllib.parse import urlparse
 
@@ -41,6 +42,42 @@ HOE_PROFILE_REQUIRED = {
     "provider", "gpuBackend",
 }
 BANNED_COMMAND_EXECUTABLES = {"bash", "cmd", "fish", "powershell", "pwsh", "sh", "zsh"}
+
+
+def validate_tutorials(known: set[str]) -> list[str]:
+    errors = []
+    try:
+        catalog = json.loads((ROOT / "content/tutorials.json").read_text(encoding="utf-8"))
+        hoe = json.loads(HOE_CATALOG.read_text(encoding="utf-8"))
+        path, lessons = catalog["path"], catalog["lessons"]
+        if catalog.get("schemaVersion") != 1 or not isinstance(lessons, dict) or not isinstance(path, list):
+            return ["invalid tutorial catalog schema"]
+        if not all(isinstance(item, str) for item in path) or len(path) != len(set(path)) or set(path) != set(lessons):
+            return ["tutorial path must name every authored lesson exactly once"]
+        required_sections = ["Why it matters", "Mental model", "Worked example", "Guided experiment",
+                             "Production trade-offs and failure cases", "Independent challenge", "Knowledge check", "References"]
+        for topic, entry in lessons.items():
+            if topic not in known:
+                errors.append(f"unknown tutorial topic: {topic}")
+                continue
+            if not re.fullmatch(r"content/rag/[a-z0-9-]+\.md", entry["path"]) or not re.fullmatch(r"labs/[a-z0-9_/-]+\.py", entry["starter"]) or ".." in entry["starter"]:
+                errors.append(f"{topic}: invalid tutorial file path")
+                continue
+            content = (ROOT / entry["path"]).read_text(encoding="utf-8")
+            if not (ROOT / entry["starter"]).is_file():
+                errors.append(f"{topic}: missing baseline")
+            for heading in required_sections:
+                if f"## {heading}\n" not in content:
+                    errors.append(f"{topic}: missing tutorial section {heading}")
+            dt.date.fromisoformat(entry["reviewedAt"])
+            if entry["reviewedAt"] not in content or len(content.split()) < 250:
+                errors.append(f"{topic}: tutorial needs review date and developed content")
+            profile = hoe["profiles"][hoe["topics"][topic]]
+            if profile["status"] != "automated" or profile["run"] != ["python3", entry["starter"], topic] or profile["verify"] != ["python3", "-m", "unittest", entry["verifyTest"], "-v"]:
+                errors.append(f"{topic}: tutorial commands must match the automated HOE contract")
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        errors.append(f"invalid tutorial catalog or missing file: {error}")
+    return errors
 
 
 def validate_hoe_catalog(known: set[str]) -> list[str]:
@@ -197,6 +234,7 @@ def validate() -> list[str]:
     if len({item["exercise"] for item in concepts}) != len(concepts):
         errors.append("every concept must have a unique hands-on exercise")
     errors.extend(validate_hoe_catalog(known))
+    errors.extend(validate_tutorials(known))
     for track_id in tracks:
         actual = sorted(item["order"] for item in concepts if item["track"] == track_id)
         if actual != list(range(1, len(actual) + 1)):

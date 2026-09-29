@@ -42,6 +42,18 @@
 @media(max-width:720px){.menu-button{display:block}.site-header nav{display:none;position:absolute;top:65px;left:0;right:0;flex-direction:column;padding:20px;background:var(--ink)}.menu-open .site-header nav{display:flex}.hero{padding-top:80px}.hero h1{font-size:54px}.stats{grid-template-columns:repeat(2,1fr)}.home-map>header,.learning-contract{grid-template-columns:1fr}.home-map>header{row-gap:15px}.learning-contract{gap:45px}.preview-row{grid-template-columns:35px 1fr}.preview-count{display:none}.roadmap-toolbar{grid-template-columns:1fr}.map-progress{min-width:0}.filter-row{max-height:80px;overflow:auto}.three-column,.lesson-layout{display:block}.track-sidebar,.lesson-sidebar{display:none}.concept-content,.lesson-article{padding:40px 22px 80px}.concept-breadcrumb{margin-bottom:45px}.concept-content h1,.lesson-article h1{font-size:50px}.outcome-grid,.production-grid{grid-template-columns:1fr}.lab-body{overflow:auto}.lab-header{grid-template-columns:1fr auto}.lab-name{display:none}.lab-workspace{display:block;height:auto}.lab-task{min-height:430px}.editor-panel{height:720px}.stats{margin-top:65px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero-orbit{animation:none}.progress i{transition:none}}
 /* Lab execution instructions remain visible alongside the artifact workspace. */
+.tutorial-notice,.tutorial-prerequisites,.tutorial-path{margin-top:28px;padding:20px;background:#e6e4db;overflow-wrap:anywhere}
+.tutorial-notice p,.tutorial-prerequisites p,.tutorial-prerequisites li,.tutorial-path li{color:#45483e;line-height:1.6}
+.tutorial-path summary{cursor:pointer;font-weight:700}
+.tutorial-path a[aria-current=page]{font-weight:800}
+.tutorial-actions,.lab-source-links{display:flex;gap:12px;flex-wrap:wrap}
+.lab-source-links{flex-direction:column;margin-top:20px;font-size:13px}
+.lesson-article{min-width:0}
+.lesson-article pre{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
+.lesson-article :focus-visible{outline:3px solid #536619;outline-offset:3px}
+.lesson-article h1{overflow-wrap:anywhere}
+.lesson-article>.overline{color:#536619}
+.lesson-article .lesson-meta{overflow-wrap:anywhere}
 .lab-body{overflow:auto}
 .lab-execution{padding:32px clamp(18px,4vw,58px);border-bottom:1px solid var(--line);background:var(--dark2)}
 .lab-execution header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}

@@ -77,7 +77,7 @@ const path = require('node:path');
     const missing = structuredClone(catalog);
     delete missing.topics.embeddings;
     const incomplete = structuredClone(catalog);
-    incomplete.profiles['local-retrieval'].verify = null;
+    incomplete.profiles[catalog.topics.embeddings].verify = null;
     for (const body of ['{invalid json', JSON.stringify({...catalog, schemaVersion:99}), JSON.stringify(missing), JSON.stringify(incomplete)]) {
       await page.route('**/curriculum/hoe.json', route => route.fulfill({contentType:'application/json', body}));
       await open('embeddings');
@@ -89,8 +89,8 @@ const path = require('node:path');
     // Catalog text and shell arguments must survive HTML safely, without executing markup.
     const escaped = structuredClone(catalog);
     const payload = '<img src=x onerror="window.injected=true">';
-    escaped.profiles['local-retrieval'].artifacts = [payload];
-    escaped.profiles['local-retrieval'].run = ['python3', "a file's name.py", '$(touch nope)'];
+    escaped.profiles[catalog.topics.embeddings].artifacts = [payload];
+    escaped.profiles[catalog.topics.embeddings].run = ['python3', "a file's name.py", '$(touch nope)'];
     await page.route('**/curriculum/hoe.json', route => route.fulfill({contentType:'application/json', body:JSON.stringify(escaped)}));
     await open('embeddings');
     assert.ok((await page.locator('#lab-execution').textContent()).includes(payload));
