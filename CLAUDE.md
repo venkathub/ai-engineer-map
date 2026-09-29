@@ -11,3 +11,5 @@ Read and follow [`AGENTS.md`](AGENTS.md) as the authoritative repository guide b
 - Use `./run.sh check` as the completion gate. For interface changes, also use `./run.sh` and inspect the rendered result.
 - For optional model/GPU exercises, follow `docs/BYO_LLM_AND_GPU.md`; keep credentials terminal-only and never provision paid compute implicitly.
 - Report the learner-facing outcome, files changed, verification performed, and any content whose freshness still needs review.
+- For automated pull-request review, report only actionable defects introduced by the current diff. Approve only the exact current head commit when no CRITICAL, HIGH, or MEDIUM findings remain; LOW notes are non-blocking. Follow `docs/CLAUDE_PR_REVIEW.md`.
+- The Claude reviewer owns its pending and finding threads. Resolve them only after an exact-head re-review clears the findings; never ask the implementer to resolve reviewer threads.

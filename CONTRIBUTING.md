@@ -27,3 +27,5 @@ Use `./run.sh hoe inspect CONCEPT_ID` to review the resolved mode, status, comma
 ## Pull requests
 
 Keep curriculum and code changes focused. Describe the learner outcome, list new prerequisites, and include commands used for verification.
+
+Every non-draft PR receives a read-only Claude review. Address every actionable finding and push the correction; each push invalidates the previous result and triggers a complete re-review. Merge only after `claude-review` reports `APPROVED` with zero findings and all required checks pass. See [`docs/CLAUDE_PR_REVIEW.md`](docs/CLAUDE_PR_REVIEW.md).
