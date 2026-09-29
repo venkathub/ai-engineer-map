@@ -24,7 +24,7 @@ def select_result(
     if subscription_outcome == "success":
         if subscription_gate_outcome != "success":
             raise ReviewError("subscription review succeeded but its report gate did not complete")
-        if api_gate_outcome not in {"", "skipped"}:
+        if api_gate_outcome != "skipped":
             raise ReviewError("API fallback ran after a successful subscription review")
         approved, verdict = subscription_approved, subscription_verdict
     else:

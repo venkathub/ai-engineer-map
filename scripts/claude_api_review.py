@@ -106,6 +106,36 @@ def fetch_pull_request_diff(repository: str, pr_number: int, github_token: str =
     return diff
 
 
+def verify_model(api_key: str, model: str) -> None:
+    """Fail closed unless Anthropic's live model catalog contains the configured ID."""
+    request = urllib.request.Request(
+        "https://api.anthropic.com/v1/models?limit=100",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": API_VERSION,
+            "User-Agent": "ai-engineer-map-claude-review",
+        },
+    )
+    raw = _request(request)
+    try:
+        response = json.loads(raw.decode("utf-8"))
+        if not isinstance(response, dict):
+            raise TypeError("model catalog must be an object")
+        model_ids = {
+            item["id"]
+            for item in response.get("data", [])
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        }
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise ProviderError("Anthropic returned an unreadable model catalog") from exc
+    if model not in model_ids:
+        raise ProviderError("configured Claude review model is absent from the live model catalog")
+
+
+def resolve_model(configured: str | None) -> str:
+    return configured.strip() if configured and configured.strip() else DEFAULT_MODEL
+
+
 def build_prompt(diff: str, repository_rules: str, reviewed_sha: str) -> str:
     return f"""Review the pull-request diff below at exact head commit {reviewed_sha}.
 
@@ -218,7 +248,8 @@ def main() -> int:
             pr_number = int(os.environ.get("PR_NUMBER", "0"))
             github_token = os.environ.get("GH_TOKEN", "")
             diff = fetch_pull_request_diff(repository, pr_number, github_token)
-        model = os.environ.get("CLAUDE_REVIEW_MODEL", DEFAULT_MODEL)
+        model = resolve_model(os.environ.get("CLAUDE_REVIEW_MODEL"))
+        verify_model(api_key, model)
         raw_review, usage = call_claude(api_key, model, build_prompt(diff, load_rules(), reviewed_sha))
         review = normalize_review(raw_review)
         approved = review["verdict"] == "APPROVED"

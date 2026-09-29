@@ -30,6 +30,27 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertEqual(headers["Accept"], "application/vnd.github.v3.diff")
         self.assertEqual(headers["Authorization"], "Bearer hidden-token")
 
+    def test_verify_model_accepts_exact_live_catalog_id(self):
+        catalog = {"data": [{"id": "claude-sonnet-5"}, {"id": "claude-sonnet-4-6"}]}
+        with mock.patch.object(
+            api_review, "_request", return_value=json.dumps(catalog).encode()
+        ) as request:
+            api_review.verify_model("hidden-key", "claude-sonnet-5")
+        self.assertIn("/v1/models?limit=100", request.call_args.args[0].full_url)
+
+    def test_verify_model_rejects_unlisted_id(self):
+        catalog = {"data": [{"id": "claude-sonnet-5"}]}
+        with mock.patch.object(api_review, "_request", return_value=json.dumps(catalog).encode()):
+            with self.assertRaises(api_review.ProviderError) as raised:
+                api_review.verify_model("hidden-key", "not-a-model")
+        self.assertNotIn("not-a-model", str(raised.exception))
+
+    def test_empty_model_override_uses_verified_default(self):
+        self.assertEqual(api_review.resolve_model(""), api_review.DEFAULT_MODEL)
+        self.assertEqual(api_review.resolve_model("   "), api_review.DEFAULT_MODEL)
+        self.assertEqual(api_review.resolve_model(None), api_review.DEFAULT_MODEL)
+        self.assertEqual(api_review.resolve_model(" model-id "), "model-id")
+
     def test_claude_request_uses_structured_output(self):
         response = {
             "content": [
