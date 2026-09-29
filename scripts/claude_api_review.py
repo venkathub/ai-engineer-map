@@ -77,19 +77,20 @@ def _request(request: urllib.request.Request, timeout: int = 60) -> bytes:
         raise ProviderError("provider request failed before receiving a response") from exc
 
 
-def fetch_pull_request_diff(repository: str, pr_number: int, github_token: str) -> str:
+def fetch_pull_request_diff(repository: str, pr_number: int, github_token: str = "") -> str:
     if not REPOSITORY_PATTERN.fullmatch(repository):
         raise ProviderError("invalid GitHub repository identifier")
     if pr_number < 1:
         raise ProviderError("invalid pull-request number")
+    headers = {
+        "Accept": "application/vnd.github.v3.diff",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "ai-engineer-map-claude-review",
+    }
+    if github_token:
+        headers["Authorization"] = f"Bearer {github_token}"
     request = urllib.request.Request(
-        f"https://api.github.com/repos/{repository}/pulls/{pr_number}",
-        headers={
-            "Accept": "application/vnd.github.v3.diff",
-            "Authorization": f"Bearer {github_token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "ai-engineer-map-claude-review",
-        },
+        f"https://api.github.com/repos/{repository}/pulls/{pr_number}", headers=headers
     )
     raw = _request(request)
     if len(raw) > MAX_DIFF_BYTES:
@@ -200,8 +201,6 @@ def main() -> int:
             repository = os.environ.get("GITHUB_REPOSITORY", "")
             pr_number = int(os.environ.get("PR_NUMBER", "0"))
             github_token = os.environ.get("GH_TOKEN", "")
-            if not github_token:
-                raise ProviderError("GitHub token is not configured")
             diff = fetch_pull_request_diff(repository, pr_number, github_token)
         model = os.environ.get("CLAUDE_REVIEW_MODEL", DEFAULT_MODEL)
         raw_review, usage = call_claude(api_key, model, build_prompt(diff, load_rules(), reviewed_sha))
