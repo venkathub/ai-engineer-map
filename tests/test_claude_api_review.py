@@ -55,6 +55,18 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertEqual(json.loads(raw)["verdict"], "APPROVED")
         self.assertEqual(usage["output_tokens"], 5)
 
+    def test_claude_request_combines_split_text_blocks(self):
+        response = {
+            "content": [
+                {"type": "text", "text": '{"verdict":"APP'},
+                {"type": "text", "text": 'ROVED"}'},
+            ],
+            "usage": {},
+        }
+        with mock.patch.object(api_review, "_request", return_value=json.dumps(response).encode()):
+            raw, _ = api_review.call_claude("hidden-key", "claude-sonnet-5", "review this")
+        self.assertEqual(json.loads(raw)["verdict"], "APPROVED")
+
     def test_provider_error_does_not_include_response_message(self):
         request = mock.Mock()
         error = urllib_error(401, {"error": {"type": "authentication_error", "message": "private"}})

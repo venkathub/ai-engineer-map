@@ -166,10 +166,21 @@ def call_claude(api_key: str, model: str, prompt: str) -> tuple[str, dict[str, A
         ]
     except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
         raise ProviderError("Claude returned an unreadable response") from exc
-    if len(text_blocks) != 1:
-        raise ProviderError("Claude did not return exactly one structured text block")
+    if not text_blocks:
+        stop_reason = response.get("stop_reason", "unknown")
+        block_types = sorted(
+            {
+                str(block.get("type", "unknown"))
+                for block in response.get("content", [])
+                if isinstance(block, dict)
+            }
+        )
+        safe_types = ",".join(block_types) if block_types else "none"
+        raise ProviderError(
+            f"Claude returned no structured text (stop reason {stop_reason}; blocks {safe_types})"
+        )
     usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
-    return text_blocks[0], usage
+    return "".join(text_blocks), usage
 
 
 def load_rules() -> str:
