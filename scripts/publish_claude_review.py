@@ -255,6 +255,28 @@ def ensure_pending(
         create_thread_or_review(client, pr, sha, anchor, body)
 
 
+def block_exact_head(client: GitHub, pr: int, sha: str, forced_human_review: bool) -> None:
+    """Revoke stale approval before preparing review state for a new head."""
+    # This must remain the first mutation. A later file/thread API failure may
+    # leave the required check red, but must never leave the previous head's
+    # advisory approval label visible on the new commit.
+    set_labels(client, pr, set(), {"claude:approved"})
+    if "needs-human" in labels(client, pr) and not forced_human_review:
+        raise PublishError(
+            "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
+        )
+    files = list_pages(client, f"/pulls/{pr}/files", limit=3)
+    _right, _left, fallback, _anchors_truncated = diff_anchors(files)
+    all_threads = threads(client, pr)
+    ensure_pending(client, pr, sha, all_threads, fallback)
+    # Narrow the ordinary-run TOCTOU window before changing pending state. A
+    # hold added while ensure_pending was running must win this race.
+    if "needs-human" in labels(client, pr) and not forced_human_review:
+        raise PublishError(
+            "needs-human was applied while blocking the head; refusing label mutation"
+        )
+
+
 def labels(client: GitHub, pr: int) -> set[str]:
     issue = client.rest("GET", f"/issues/{pr}")
     return {item["name"] for item in issue.get("labels", [])}
@@ -535,26 +557,13 @@ def main() -> int:
     if args.mode == "verify":
         return 0
     verify_write_capability(client)
-    files = list_pages(client, f"/pulls/{args.pr}/files", limit=3)
-    _right, _left, fallback, _anchors_truncated = diff_anchors(files)
-    all_threads = threads(client, args.pr)
     if args.mode == "block":
         forced_human_review = os.environ.get("CLAUDE_HUMAN_REREVIEW") == "true"
-        if "needs-human" in labels(client, args.pr) and not forced_human_review:
-            raise PublishError(
-                "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
-            )
-        ensure_pending(client, args.pr, args.sha, all_threads, fallback)
-        # Narrow the ordinary-run TOCTOU window before changing approval state.
-        # A hold added while ensure_pending was running must win this race.
-        if "needs-human" in labels(client, args.pr) and not forced_human_review:
-            raise PublishError(
-                "needs-human was applied while blocking the head; refusing label mutation"
-            )
-        set_labels(client, args.pr, set(), {"claude:approved"})
+        block_exact_head(client, args.pr, args.sha, forced_human_review)
         return 0
     if args.report is None or args.artifact is None:
         raise SystemExit("--report and --artifact are required in publish mode")
+    files = list_pages(client, f"/pulls/{args.pr}/files", limit=3)
     publish(args, client, files)
     return 0
 

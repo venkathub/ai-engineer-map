@@ -243,6 +243,21 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertIn("test mutation", str(raised.exception))
         publisher.require_publish_authorization(Client(), 4, True, "forced mutation")
 
+    def test_new_head_revokes_approval_before_later_api_reads(self):
+        client = object()
+        with (
+            mock.patch.object(publisher, "set_labels") as set_labels,
+            mock.patch.object(publisher, "labels", return_value=set()),
+            mock.patch.object(
+                publisher,
+                "list_pages",
+                side_effect=publisher.PublishError("file inventory failed"),
+            ),
+        ):
+            with self.assertRaisesRegex(publisher.PublishError, "file inventory failed"):
+                publisher.block_exact_head(client, 4, "a" * 40, False)
+        set_labels.assert_called_once_with(client, 4, set(), {"claude:approved"})
+
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):
