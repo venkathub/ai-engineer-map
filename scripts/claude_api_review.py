@@ -21,7 +21,7 @@ from claude_review_gate import (
 )
 
 API_VERSION = "2023-06-01"
-DEFAULT_MODEL = "claude-sonnet-5"
+DEFAULT_MODEL = "claude-sonnet-5"  # Verified against Anthropic's live model list on 2026-09-29.
 MAX_DIFF_BYTES = 300_000
 REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 

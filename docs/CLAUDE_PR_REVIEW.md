@@ -16,6 +16,8 @@ gh secret set ANTHROPIC_API_KEY
 
 Generate the OAuth token from the intended Pro or Max account and paste each credential at its hidden `gh` prompt. Successful subscription reviews avoid metered API usage. If OAuth is unavailable, expired, rejected, or the Claude Code Action fails before producing a structured result, the fallback defaults to `claude-sonnet-5`. API usage is then billed separately from the web subscription. To bound latency and cost, the fallback disables thinking and uses a hard 8,000-output-token ceiling; a truncated response fails closed. Override its model with the non-secret Actions variable `CLAUDE_REVIEW_MODEL` only after confirming that model accepts `thinking: {type: "disabled"}` and structured outputs.
 
+The `claude-sonnet-5` fallback was verified on **2026-09-29** against Anthropic's live `/v1/models` response and the official Sonnet 5 documentation. `scripts/claude_api_review.py` is the single default source; an Actions variable overrides it only when non-empty.
+
 Local credentials may remain in the ignored `.env` for hands-on exercises, but the workflow reads encrypted Actions secrets. Never place either value in workflow YAML, pull-request text, logs, or repository variables. Rotate them according to the provider's policy. Each report identifies whether subscription OAuth or the API fallback produced its verdict without exposing credential details.
 
 ## Review and merge lifecycle
@@ -48,10 +50,14 @@ gh secret set CLAUDE_CODE_OAUTH_TOKEN
 
 The workflow deliberately does not use or execute code from the pull-request head. Do not change the trusted-base checkout to the head SHA and do not run downloaded PR artifacts in this privileged workflow.
 
+The pinned Claude Code Action receives a job-scoped `GITHUB_TOKEN` limited by GitHub to `contents: read` and `pull-requests: read`. It can obtain repository/PR context for review, but GitHub denies comment creation, branch updates, merges, workflow-log reads, and other write operations regardless of action behavior. The separate publisher receives `pull-requests: write` but receives neither Anthropic credential and executes no PR-authored code.
+
 For public repositories, ensure the repository or organization Actions policy explicitly permits `pull_request_target`. GitHub has announced enforcement of its default blocking policy for that event beginning November 2, 2026; the review gate must fail closed rather than silently bypass review if policy blocks the workflow.
 
 ## Official references
 
 - [Anthropic Messages API](https://platform.claude.com/docs/en/api/http/messages)
 - [Anthropic structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+- [Claude Sonnet 5 model and migration behavior](https://platform.claude.com/docs/en/models/sonnet-5/whats-new-sonnet-5)
+- [Pinned Claude Code Action source](https://github.com/anthropics/claude-code-action/tree/8ce9314fa9a404564fa7e954cd84f25bcba2b829)
 - [GitHub guidance for secure `pull_request_target` use](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)

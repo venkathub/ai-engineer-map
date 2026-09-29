@@ -41,6 +41,15 @@ def select_result(
     return approved == "true", verdict
 
 
+def write_failure_report(report: Path, reason: str, reviewed_sha: str) -> bool:
+    try:
+        report.write_text(render_unavailable(reason, reviewed_sha), encoding="utf-8")
+    except OSError as exc:
+        print(f"Could not write fail-closed Claude report: {exc}")
+        return False
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, required=True)
@@ -60,7 +69,10 @@ def main() -> int:
     except ReviewError as exc:
         approved, verdict = False, "ERROR"
         reviewed_sha = os.environ.get("REVIEWED_SHA", "")
-        args.report.write_text(render_unavailable(str(exc), reviewed_sha), encoding="utf-8")
+        report_written = write_failure_report(args.report, str(exc), reviewed_sha)
+        if not report_written:
+            write_outputs(approved, verdict, 0)
+            return 1
 
     write_outputs(approved, verdict, 0)
     print(f"Selected Claude review verdict: {verdict}; approved={str(approved).lower()}")
@@ -69,4 +81,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

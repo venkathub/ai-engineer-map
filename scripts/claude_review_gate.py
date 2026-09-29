@@ -29,6 +29,10 @@ def _safe_markdown(value: str) -> str:
     return value.replace("@", "@\u200b").replace("<!--", "&lt;!--")
 
 
+def _inline_code(value: str) -> str:
+    return _safe_markdown(value).replace("`", "'")
+
+
 def normalize_review(raw: str) -> dict[str, Any]:
     try:
         review = json.loads(raw)
@@ -102,7 +106,8 @@ def render_review(review: dict[str, Any], reviewed_sha: str, route: str = "") ->
         _safe_markdown(review["summary"]),
     ]
     if route:
-        lines.extend(["", f"Review route: `{_safe_markdown(route).replace('`', "'")}`"])
+        route_display = _inline_code(route)
+        lines.extend(["", f"Review route: `{route_display}`"])
 
     findings = review["findings"]
     lines.extend(["", f"### Actionable findings ({len(findings)})", ""])
@@ -112,11 +117,12 @@ def render_review(review: dict[str, Any], reviewed_sha: str, route: str = "") ->
         location = finding["path"]
         if finding["line"] is not None:
             location += f":{finding['line']}"
+        location_display = _inline_code(location)
+        finding_id_display = _inline_code(finding["id"])
         lines.extend(
             [
                 f"- **[{finding['severity'].upper()}] {_safe_markdown(finding['title'])}** "
-                f"(`{_safe_markdown(location).replace('`', "'")}`; "
-                f"ID `{_safe_markdown(finding['id']).replace('`', "'")}`)",
+                f"(`{location_display}`; ID `{finding_id_display}`)",
                 f"  - {_safe_markdown(finding['details'])}",
                 f"  - Fix: {_safe_markdown(finding['recommendation'])}",
             ]

@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -41,6 +42,18 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
             decision.select_result(
                 "success", "success", "true", "APPROVED", "success", "false", "ERROR"
             )
+
+    def test_failure_report_is_written_when_route_report_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review.md"
+            written = decision.write_failure_report(report, "route failed", "abc123")
+            self.assertTrue(written)
+            self.assertIn("REVIEW UNAVAILABLE", report.read_text(encoding="utf-8"))
+
+    def test_failure_report_returns_false_for_unwritable_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "missing" / "review.md"
+            self.assertFalse(decision.write_failure_report(report, "route failed", "abc123"))
 
 
 if __name__ == "__main__":
