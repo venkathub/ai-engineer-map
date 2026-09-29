@@ -10,6 +10,8 @@
 6. Keep dependency relationships acyclic and update the curriculum review date only after verifying affected claims.
 7. Run `python3 scripts/validate_curriculum.py` and the unit tests.
 
+Exercises must begin with an observable action and must be unique. They are rendered as Inspect, Modify, or Build work in the lab. A completion artifact needs real evidence for both outcomes, source/version provenance, one failure case, and one production trade-off; the browser checklist alone is not proof of completion.
+
 ## Evidence standard
 
 Prefer official documentation, standards, original research papers, and maintained source repositories. Secondary explanations may supplement but should not replace primary evidence for technical claims.

@@ -1,15 +1,16 @@
 # AI Engineer Map
 
-An open, source-backed learning environment for production AI engineering. The 2026 curriculum connects 76 concepts across 10 tracks, with explicit prerequisites, outcomes, exercises, primary references, and a technical-review date.
+An open, source-backed learning environment for production AI engineering. The 2026 curriculum connects 104 concepts across 12 tracks, with explicit prerequisites, outcomes, exercises, primary references, and a technical-review date.
 
 ## What is included
 
 - A complete landing page, roadmap explorer, concept overview, lesson reader, and lab workspace
-- A visual, searchable curriculum with 76 dependency-linked concepts
+- A visual, searchable curriculum with 104 dependency-linked concepts
 - Track and completion filters
 - Local progress tracking (no account required)
 - Machine-readable curriculum metadata
-- Coverage from ML and transformer foundations through RAG, agents, MCP, A2A, multimodal/realtime systems, evaluation, safety, fine-tuning, inference, and production
+- Coverage from software, data, MLOps, classic ML and transformers through RAG, agents, MCP, A2A, applied ML domains, multimodal/realtime systems, evaluation, safety, fine-tuning, inference, and production
+- A unique Inspect, Modify, or Build exercise for every topic, with a topic-specific starter artifact and evidence checklist
 - A dependency-free retrieval lab with automated tests
 - Validation for coverage, references, prerequisites, dependency cycles, and review freshness
 
@@ -51,6 +52,7 @@ Every concept should answer:
 7. What should I learn next?
 
 See [PLAN.md](PLAN.md) for the implementation roadmap and [CONTRIBUTING.md](CONTRIBUTING.md) for the content contract.
+The evidence and gap analysis behind the current scope is recorded in [docs/CURRICULUM_AUDIT_2026.md](docs/CURRICULUM_AUDIT_2026.md).
 
 ## Curriculum freshness
 

@@ -12,7 +12,25 @@ from urllib.parse import urlparse
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CURRICULUM = ROOT / "curriculum" / "concepts.json"
 REQUIRED = {"id", "title", "track", "order", "level", "minutes", "summary", "prerequisites", "outcomes", "exercise"}
-MODERN_CORE = {"transformers", "rag-quality", "mcp", "a2a", "realtime-voice", "agent-evals", "prompt-injection", "peft", "quantization", "tracing-observability", "capstone"}
+MODERN_CORE = {
+    "transformers", "reasoning-models", "rag-quality", "mcp", "mcp-tasks", "a2a",
+    "agent-skills-hooks", "realtime-voice", "agent-evals", "system-tevv",
+    "prompt-injection", "agentic-security", "content-provenance", "ai-regulation",
+    "training-pipelines", "model-registry", "synthetic-data", "reinforcement-learning",
+    "peft", "quantization", "speculative-decoding", "edge-inference",
+    "tracing-observability", "performance-benchmarking", "capstone",
+}
+REQUIRED_TRACKS = {
+    "foundations", "ml", "models", "context", "rag", "agents", "multimodal",
+    "evals", "safety", "dataops", "applied", "production",
+}
+EXERCISE_VERBS = {
+    "add", "audit", "benchmark", "build", "classify", "compare", "configure",
+    "containerize", "create", "define", "design", "evaluate", "extract", "generate",
+    "implement", "measure", "model", "package", "prototype", "reduce", "review",
+    "rewrite", "run", "secure", "specify", "storyboard", "threat-model", "train",
+    "turn", "visualize", "write",
+}
 
 
 def validate() -> list[str]:
@@ -35,8 +53,14 @@ def validate() -> list[str]:
     duplicates = sorted({item for item in ids if ids.count(item) > 1})
     if duplicates:
         errors.append(f"duplicate concept ids: {duplicates}")
-    if len(tracks) < 10 or len(concepts) < 70:
-        errors.append("coverage floor is 10 tracks and 70 concepts")
+    framework = data.get("exerciseFramework", {})
+    if set(framework) != {"inspect", "modify", "build"} or not all(framework.values()):
+        errors.append("exerciseFramework must define inspect, modify, and build")
+    if len(tracks) < 12 or len(concepts) < 100:
+        errors.append("coverage floor is 12 tracks and 100 concepts")
+    missing_tracks = sorted(REQUIRED_TRACKS - set(tracks))
+    if missing_tracks:
+        errors.append(f"missing role-coverage tracks: {missing_tracks}")
     missing_core = sorted(MODERN_CORE - known)
     if missing_core:
         errors.append(f"missing modern core topics: {missing_core}")
@@ -50,6 +74,8 @@ def validate() -> list[str]:
         for ref_id in item.get("refs", []):
             if ref_id not in references:
                 errors.append(f"{track_id}: unknown reference {ref_id}")
+        if sum(concept.get("track") == track_id for concept in concepts) < 6:
+            errors.append(f"{track_id}: track needs at least six concepts")
 
     orders: set[tuple[str, int]] = set()
     graph: dict[str, list[str]] = {}
@@ -69,6 +95,12 @@ def validate() -> list[str]:
             errors.append(f"{label}: minutes must be positive")
         if len(item["outcomes"]) < 2 or not item["exercise"].strip():
             errors.append(f"{label}: needs two outcomes and an exercise")
+        verb = item["exercise"].split()[0].lower().strip(".,:")
+        if verb not in EXERCISE_VERBS:
+            errors.append(f"{label}: exercise must begin with an observable action verb")
+        for ref_id in item.get("refs", []):
+            if ref_id not in references:
+                errors.append(f"{label}: unknown topic reference {ref_id}")
         unknown = sorted(set(item["prerequisites"]) - known)
         if unknown:
             errors.append(f"{label}: unknown prerequisites {unknown}")
@@ -93,6 +125,12 @@ def validate() -> list[str]:
 
     for concept_id in graph:
         visit(concept_id)
+    if len({item["exercise"] for item in concepts}) != len(concepts):
+        errors.append("every concept must have a unique hands-on exercise")
+    for track_id in tracks:
+        actual = sorted(item["order"] for item in concepts if item["track"] == track_id)
+        if actual != list(range(1, len(actual) + 1)):
+            errors.append(f"{track_id}: concept order must be contiguous from 1")
     return errors
 
 

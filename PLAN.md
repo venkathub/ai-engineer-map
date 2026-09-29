@@ -84,6 +84,9 @@ Every completed lesson contains:
 - [x] RAG, agents, MCP 2026-07-28, and A2A v0.3
 - [x] Multimodal, realtime voice, evaluation, observability, and safety
 - [x] PEFT, quantization, serving, distributed inference, and AI operations
+- [x] Data/MLOps, applied ML domains, reasoning models, agent skills, asynchronous MCP tasks, system TEVV, agentic security, provenance, compliance, benchmarking, and edge inference
+
+The current role-coverage audit contains 104 concepts across 12 tracks. See `docs/CURRICULUM_AUDIT_2026.md` for scope, gaps corrected, hands-on evidence rules, and primary sources.
 
 ### M5 — Portfolio and community
 

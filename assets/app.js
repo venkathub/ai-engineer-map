@@ -33,12 +33,46 @@ function concept(id) { return curriculum.concepts.find((item) => item.id === id)
 function track(id) { return curriculum.tracks.find((item) => item.id === id); }
 function trackConcepts(id) { return curriculum.concepts.filter((item) => item.track === id).sort((a, b) => a.order - b.order); }
 function nextConcept(item) { return trackConcepts(item.track).find((candidate) => candidate.order > item.order); }
-function conceptRefs(item) { return track(item.track).refs.map((id) => curriculum.references[id]).filter(Boolean); }
+function conceptRefs(item) {
+  const ids = [...track(item.track).refs, ...(item.refs || [])];
+  return [...new Set(ids)].map((id) => curriculum.references[id]).filter(Boolean);
+}
 function donePercent() { return Math.round((completed.size / curriculum.concepts.length) * 100); }
 function saveProgress() { localStorage.setItem(STORE_KEY, JSON.stringify([...completed])); }
 function toggleDone(id) { completed.has(id) ? completed.delete(id) : completed.add(id); saveProgress(); }
 function isUnlocked(item) { return item.prerequisites.every((id) => completed.has(id)); }
 function queryLink(path, id) { return `${path}?id=${encodeURIComponent(id)}`; }
+
+function exerciseProfile(item) {
+  const verb = item.exercise.split(" ")[0].toLowerCase().replace(/[^a-z-]/g, "");
+  const inspectVerbs = new Set(["audit", "benchmark", "classify", "compare", "evaluate", "measure", "review", "run", "visualize"]);
+  const modifyVerbs = new Set(["add", "configure", "reduce", "rewrite", "secure"]);
+  const mode = inspectVerbs.has(verb) ? "inspect" : modifyVerbs.has(verb) ? "modify" : "build";
+  const filenames = {
+    safety: "security-review.md", evals: "evaluation.yaml", dataops: "pipeline.py",
+    applied: "experiment.py", ml: "experiment.py", multimodal: "media-evaluation.json",
+    agents: "agent-harness.py", rag: "retrieval-harness.py", context: "context-contract.md",
+    models: "model-harness.py", production: "production-plan.yaml", foundations: "implementation.py",
+  };
+  const filename = filenames[item.track] || "artifact.md";
+  const checks = [
+    `Produces: ${item.exercise.replace(/\.$/, "")}`,
+    ...item.outcomes.map((value) => `Evidence shows: ${value}`),
+    "Records inputs, versions, and provenance",
+    "Includes one failure case and one trade-off",
+  ];
+  let starter;
+  if (filename.endsWith(".md")) {
+    starter = `# ${item.title}\n\n## Goal\n${item.exercise}\n\n## Inputs and versions\n- TODO\n\n## Evidence\n- ${item.outcomes.join("\n- ")}\n\n## Failure case\nTODO\n\n## Trade-off\nTODO`;
+  } else if (filename.endsWith(".yaml")) {
+    starter = `task: ${item.id}\nobjective: ${JSON.stringify(item.exercise)}\ninputs: []\nversions: {}\nchecks:\n${item.outcomes.map((value) => `  - ${JSON.stringify(value)}`).join("\n")}\nfailure_case: TODO\ntrade_off: TODO`;
+  } else if (filename.endsWith(".json")) {
+    starter = JSON.stringify({task:item.id, objective:item.exercise, inputs:[], versions:{}, evidence:item.outcomes, failure_case:"TODO", trade_off:"TODO"}, null, 2);
+  } else {
+    starter = `"""Hands-on exercise: ${item.title}."""\n\nTASK = ${JSON.stringify(item.exercise)}\nOUTCOMES = ${JSON.stringify(item.outcomes, null, 4)}\n\ndef build_artifact(fixtures, policy):\n    """TODO: implement, measure, and preserve provenance."""\n    raise NotImplementedError\n\ndef verify(artifact):\n    assert artifact.get("provenance")\n    assert artifact.get("failure_case")\n    return True\n`;
+  }
+  return {mode, label: mode.toUpperCase(), filename, checks, starter};
+}
 
 function renderHome() {
   const totalMinutes = curriculum.concepts.reduce((sum, item) => sum + item.minutes, 0);
@@ -87,7 +121,8 @@ function renderRoadmapPage() {
   }
 
   function renderInspector(id) {
-    const item = concept(id) || filtered()[0];
+    const matches = filtered();
+    const item = matches.find((entry) => entry.id === id) || matches[0] || concept(id);
     if (!item) return;
     state.selected = item.id;
     const prereqs = item.prerequisites.map(concept).filter(Boolean);
@@ -120,7 +155,7 @@ function renderConceptPage() {
     <p class="overline">${escapeHtml(lane.phase)} · ${item.level}</p><h1>${escapeHtml(item.title)}</h1><p class="lede">${escapeHtml(item.summary)}</p>
     <div class="mechanism-visual" style="--track:${lane.color}"><span>INPUT</span><i></i><strong>${escapeHtml(item.title)}</strong><i></i><span>EVIDENCE</span></div>
     <section><h2>What you will learn</h2><div class="outcome-grid">${item.outcomes.map((value, index) => `<article><span>0${index + 1}</span><p>${escapeHtml(value)}</p></article>`).join("")}</div></section>
-    <section><h2>Proof of understanding</h2><div class="exercise-callout"><span>BUILD</span><p>${escapeHtml(item.exercise)}</p><a href="${queryLink("lab.html",item.id)}">Open guided lab →</a></div></section>
+    <section><h2>Proof of understanding</h2><div class="exercise-callout"><span>${exerciseProfile(item).label}</span><p>${escapeHtml(item.exercise)}</p><a href="${queryLink("lab.html",item.id)}">Open guided lab →</a></div></section>
     <section><h2>Primary references</h2><ul class="reference-list">${conceptRefs(item).map((ref) => `<li><a href="${ref.url}" target="_blank" rel="noreferrer">${escapeHtml(ref.title)} ↗</a></li>`).join("")}</ul></section>`;
   $("#concept-rail").innerHTML = `
     <span class="overline">Track progress</span><strong>${items.filter((entry) => completed.has(entry.id)).length} / ${items.length}</strong><div class="progress"><i style="width:${items.filter((entry) => completed.has(entry.id)).length / items.length * 100}%"></i></div>
@@ -149,7 +184,7 @@ assert result.status in {"ok", "insufficient_evidence", "blocked"}
 trace.record(result.metrics)</code></pre></section>
     <section id="production"><h2>3. Production pattern</h2><div class="production-grid"><article><b>Contract</b><p>Version inputs, outputs, policy, and artifacts.</p></article><article><b>Evidence</b><p>Capture traces and task-specific quality measures.</p></article><article><b>Control</b><p>Bound cost, latency, data access, and external effects.</p></article></div></section>
     <section id="failures"><h2>4. Failure modes</h2><ul><li>Testing only examples that shaped the implementation.</li><li>Hiding partial failure behind retries or fluent model output.</li><li>Coupling product behavior to one provider-specific payload.</li><li>Logging sensitive inputs without an explicit data policy.</li></ul></section>
-    <section id="exercise"><h2>5. Guided exercise</h2><div class="exercise-callout"><span>BUILD</span><p>${escapeHtml(item.exercise)}</p><a href="${queryLink("lab.html",item.id)}">Open lab workspace →</a></div></section>
+    <section id="exercise"><h2>5. Guided exercise</h2><div class="exercise-callout"><span>${exerciseProfile(item).label}</span><p>${escapeHtml(item.exercise)}</p><a href="${queryLink("lab.html",item.id)}">Open lab workspace →</a></div></section>
     <section id="check"><h2>6. Knowledge check</h2><details><summary>What evidence would prove this component works?</summary><p>A representative dataset, a task-specific metric or deterministic assertion, traceable inputs and versions, and a documented failure case.</p></details><details><summary>What belongs outside the model?</summary><p>Authorization, secrets, irreversible effects, schema validation, budgets, and other deterministic policy enforcement.</p></details></section>
     <section id="references"><h2>7. Primary references</h2><ul class="reference-list">${refs.map((ref) => `<li><a href="${ref.url}" target="_blank" rel="noreferrer">${escapeHtml(ref.title)} ↗</a></li>`).join("")}</ul></section>
     ${next ? `<a class="next-lesson" href="${queryLink("lesson.html",next.id)}"><span>Next concept</span><b>${escapeHtml(next.title)} →</b></a>` : ""}`;
@@ -159,19 +194,21 @@ trace.record(result.metrics)</code></pre></section>
 
 function renderLabPage() {
   const item = concept(params.get("id")) || concept("vector-indexes");
+  const profile = exerciseProfile(item);
   document.title = `${item.title} lab · AI Engineer Map`;
   $("#lab-title").textContent = item.title;
-  $("#lab-task").innerHTML = `<span class="overline">Your task</span><h1>${escapeHtml(item.exercise)}</h1><p>Complete the TODO, run the tests, inspect the result, and explain one production trade-off.</p><ol><li>Read the fixture and acceptance checks.</li><li>Implement the smallest clear solution.</li><li>Run tests and inspect evidence.</li><li>Record a failure mode.</li></ol>`;
-  const code = `def build_component(items, policy):\n    \"\"\"Return a traceable, validated result.\"\"\"\n    # TODO: implement the core transformation\n    result = []\n    for item in items:\n        if policy.allows(item):\n            result.append(item)\n    return {\n        \"items\": result,\n        \"provenance\": [item.id for item in result],\n        \"status\": \"ok\" if result else \"insufficient_evidence\",\n    }`;
-  $("#code-editor").value = code;
-  $("#test-list").innerHTML = ["returns a typed result","preserves provenance","enforces policy before output","handles empty evidence","is deterministic"].map((test) => `<li><i></i>${test}</li>`).join("");
+  $("#editor-filename").textContent = profile.filename;
+  $("#run-tests").textContent = profile.mode === "build" ? "Run checks ↗" : "Validate artifact ↗";
+  $("#lab-task").innerHTML = `<span class="overline">${profile.label} exercise</span><h1>${escapeHtml(item.exercise)}</h1><p>Every topic uses the same evidence contract, adapted to its artifact: complete the work, satisfy both learning outcomes, preserve provenance, and document a failure and trade-off.</p><ol><li>Read the objective and acceptance checks.</li><li>Complete the topic-specific starter artifact.</li><li>Validate each item with observable evidence.</li><li>Record a failure mode and production trade-off.</li></ol>`;
+  $("#code-editor").value = profile.starter;
+  $("#test-list").innerHTML = profile.checks.map((test) => `<li><i></i>${escapeHtml(test)}</li>`).join("");
   $("#run-tests").addEventListener("click", () => {
-    const button = $("#run-tests"); button.disabled = true; button.textContent = "Running…";
-    $("#terminal").textContent = `$ python -m unittest\n\nCollecting 5 checks for ${item.id}…`;
+    const button = $("#run-tests"); button.disabled = true; button.textContent = "Validating…";
+    $("#terminal").textContent = `$ validate ${profile.filename}\n\nCollecting ${profile.checks.length} acceptance checks for ${item.id}…`;
     setTimeout(() => {
       $$("#test-list li").forEach((row, index) => setTimeout(() => row.classList.add("pass"), index * 100));
-      $("#terminal").textContent = `$ python -m unittest\n.....\n----------------------------------------------------------------------\nRan 5 tests in 0.014s\n\nOK\n\nEvidence: policy applied before output; provenance retained.`;
-      button.disabled = false; button.textContent = "Run tests ↗";
+      $("#terminal").textContent = `$ validate ${profile.filename}\n${".".repeat(profile.checks.length)}\n----------------------------------------------------------------------\n${profile.checks.length} acceptance checks recorded\n\nREADY FOR REVIEW\n\nAttach real output, measurements, or screenshots before claiming completion.`;
+      button.disabled = false; button.textContent = profile.mode === "build" ? "Run checks ↗" : "Validate artifact ↗";
       completed.add(item.id); saveProgress();
     }, 500);
   });
