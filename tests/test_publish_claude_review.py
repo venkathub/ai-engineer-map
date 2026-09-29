@@ -209,6 +209,35 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertTrue(truncated)
         self.assertIn("50,000-line limit", message)
 
+    def test_path_beyond_anchor_budget_uses_general_review(self):
+        patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
+        with redirect_stdout(io.StringIO()):
+            right, _left, fallback, truncated = publisher.diff_anchors(
+                [
+                    {"filename": "large.txt", "patch": patch},
+                    {"filename": "later.py", "patch": "@@ -0,0 +1 @@\n+new"},
+                ]
+            )
+            if truncated:
+                fallback = None
+            anchor = publisher.finding_anchor(
+                {"path": "later.py", "line": 1}, right, fallback
+            )
+
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                return {}
+
+        client = Client()
+        publisher.create_thread_or_review(client, 4, "a" * 40, anchor, "body")
+        self.assertTrue(truncated)
+        self.assertIsNone(anchor)
+        self.assertEqual(client.calls[0][1], "/pulls/4/reviews")
+
 
 if __name__ == "__main__":
     unittest.main()

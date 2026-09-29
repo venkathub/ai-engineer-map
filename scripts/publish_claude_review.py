@@ -528,7 +528,7 @@ def main() -> int:
                 "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
             )
         ensure_pending(client, args.pr, args.sha, all_threads, fallback)
-        # Close the ordinary-run TOCTOU window before changing approval state.
+        # Narrow the ordinary-run TOCTOU window before changing approval state.
         # A hold added while ensure_pending was running must win this race.
         if "needs-human" in labels(client, args.pr) and not forced_human_review:
             raise PublishError(
