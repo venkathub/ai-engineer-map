@@ -13,10 +13,17 @@ from typing import Any
 MARKER = "<!-- claude-pr-review -->"
 VERDICTS = {"APPROVED", "CHANGES_REQUESTED"}
 SEVERITIES = {"critical", "high", "medium", "low"}
+SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 
 class ReviewError(ValueError):
     """Raised when Claude's structured review violates the gate contract."""
+
+
+def validate_reviewed_sha(value: str) -> str:
+    if not SHA_PATTERN.fullmatch(value):
+        raise ReviewError("REVIEWED_SHA must be a 40-character lowercase Git commit ID")
+    return value
 
 
 def _text(value: Any, field: str) -> str:
@@ -48,6 +55,10 @@ def _safe_markdown(value: str) -> str:
 
 def _inline_code(value: str) -> str:
     return _plain_text(value).replace("`", "'")
+
+
+def _commit_label(reviewed_sha: str) -> str:
+    return reviewed_sha[:12] if SHA_PATTERN.fullmatch(reviewed_sha) else "unknown"
 
 
 def validate_subscription_result(
@@ -111,6 +122,10 @@ def normalize_review(raw: str) -> dict[str, Any]:
         raise ReviewError("tests_reviewed must be a list of strings")
     if not isinstance(residual_risks, list) or not all(isinstance(item, str) for item in residual_risks):
         raise ReviewError("residual_risks must be a list of strings")
+    if any(not item.strip() for item in tests_reviewed):
+        raise ReviewError("tests_reviewed entries must be non-empty strings")
+    if any(not item.strip() for item in residual_risks):
+        raise ReviewError("residual_risks entries must be non-empty strings")
 
     if verdict == "APPROVED" and normalized_findings:
         raise ReviewError("APPROVED is inconsistent with non-empty findings")
@@ -133,7 +148,7 @@ def render_review(review: dict[str, Any], reviewed_sha: str, route: str = "") ->
         MARKER,
         "## Claude PR review",
         "",
-        f"**{icon} {review['verdict']}** for commit `{reviewed_sha[:12] or 'unknown'}`",
+        f"**{icon} {review['verdict']}** for commit `{_commit_label(reviewed_sha)}`",
         "",
         _safe_markdown(review["summary"]),
     ]
@@ -187,7 +202,7 @@ def render_unavailable(reason: str, reviewed_sha: str) -> str:
             MARKER,
             "## Claude PR review",
             "",
-            f"**⚠️ REVIEW UNAVAILABLE** for commit `{reviewed_sha[:12] or 'unknown'}`",
+            f"**⚠️ REVIEW UNAVAILABLE** for commit `{_commit_label(reviewed_sha)}`",
             "",
             _safe_markdown(reason),
             "",
@@ -219,6 +234,7 @@ def main() -> int:
     review_route = os.environ.get("REVIEW_ROUTE", "")
 
     try:
+        reviewed_sha = validate_reviewed_sha(reviewed_sha)
         review = validate_subscription_result(auth_configured, action_outcome, raw_review)
         approved = review["verdict"] == "APPROVED"
         report = render_review(review, reviewed_sha, review_route)

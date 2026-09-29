@@ -7,7 +7,7 @@ import argparse
 import os
 from pathlib import Path
 
-from claude_review_gate import ReviewError, render_unavailable, write_outputs
+from claude_review_gate import ReviewError, render_unavailable, validate_reviewed_sha, write_outputs
 
 VALID_VERDICTS = {"APPROVED", "CHANGES_REQUESTED", "ERROR"}
 
@@ -59,6 +59,7 @@ def main() -> int:
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     try:
+        reviewed_sha = validate_reviewed_sha(os.environ.get("REVIEWED_SHA", ""))
         approved, verdict = select_result(
             os.environ.get("SUBSCRIPTION_OUTCOME", ""),
             os.environ.get("SUBSCRIPTION_GATE_OUTCOME", ""),

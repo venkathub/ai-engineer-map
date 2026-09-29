@@ -54,6 +54,13 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertEqual(api_review.resolve_model(None), api_review.DEFAULT_MODEL)
         self.assertEqual(api_review.resolve_model(" model-id "), "model-id")
 
+    def test_reviewed_sha_requires_full_lowercase_commit_id(self):
+        valid = "a" * 40
+        self.assertEqual(api_review.validate_reviewed_sha(valid), valid)
+        for invalid in ("abc123", "A" * 40, "a" * 41, "../main"):
+            with self.assertRaises(api_review.ProviderError):
+                api_review.validate_reviewed_sha(invalid)
+
     def test_claude_request_uses_structured_output(self):
         response = {
             "content": [

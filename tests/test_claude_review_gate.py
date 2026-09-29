@@ -46,6 +46,19 @@ class ClaudeReviewGateTests(unittest.TestCase):
         with self.assertRaises(review_gate.ReviewError):
             review_gate.normalize_review(review_payload("APPROVED", [finding]))
 
+    def test_evidence_lists_reject_blank_entries(self):
+        for field in ("tests_reviewed", "residual_risks"):
+            payload = json.loads(review_payload())
+            payload[field] = ["   "]
+            with self.assertRaises(review_gate.ReviewError):
+                review_gate.normalize_review(json.dumps(payload))
+
+    def test_reviewed_sha_requires_full_lowercase_commit_id(self):
+        valid = "b" * 40
+        self.assertEqual(review_gate.validate_reviewed_sha(valid), valid)
+        with self.assertRaises(review_gate.ReviewError):
+            review_gate.validate_reviewed_sha("not-a-commit")
+
     def test_report_neutralizes_mentions_and_comment_markers(self):
         payload = json.loads(review_payload())
         payload["summary"] = "Notify @team <!-- hidden -->"

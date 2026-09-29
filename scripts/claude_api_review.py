@@ -25,6 +25,7 @@ API_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-sonnet-5"
 MAX_DIFF_BYTES = 300_000
 REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 REVIEW_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -139,6 +140,12 @@ def resolve_model(configured: str | None) -> str:
     return configured.strip() if configured and configured.strip() else DEFAULT_MODEL
 
 
+def validate_reviewed_sha(value: str) -> str:
+    if not SHA_PATTERN.fullmatch(value):
+        raise ProviderError("REVIEWED_SHA must be a 40-character lowercase Git commit ID")
+    return value
+
+
 def build_prompt(diff: str, repository_rules: str, reviewed_sha: str) -> str:
     return f"""Review the pull-request diff below at exact head commit {reviewed_sha}.
 
@@ -239,6 +246,7 @@ def main() -> int:
 
     reviewed_sha = args.reviewed_sha or os.environ.get("REVIEWED_SHA", "")
     try:
+        reviewed_sha = validate_reviewed_sha(reviewed_sha)
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
             raise ProviderError("ANTHROPIC_API_KEY is not configured")

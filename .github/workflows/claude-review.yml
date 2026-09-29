@@ -141,6 +141,9 @@ jobs:
             const auditMarker = "<!-- claude-pr-review -->";
             const threadMarker = "<!-- claude-review-thread -->";
             const approved = process.env.REVIEW_APPROVED === "true";
+            if (!/^[0-9a-f]{40}$/.test(process.env.REVIEWED_SHA)) {
+              throw new Error("REVIEWED_SHA must be a 40-character lowercase Git commit ID");
+            }
 
             const issueComments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number: pull_number, per_page: 100,
@@ -175,49 +178,53 @@ jobs:
             });
             const previousThreadComment = reviewComments.find((comment) =>
               comment.body && comment.body.includes(threadMarker));
-            const threadData = await github.graphql(`
-              query($owner: String!, $repo: String!, $number: Int!) {
-                repository(owner: $owner, name: $repo) {
-                  pullRequest(number: $number) {
-                    reviewThreads(first: 100) {
-                      nodes {
-                        id
-                        isResolved
-                        comments(first: 100) { nodes { databaseId body } }
+            async function findThread(commentId, marker) {
+              const threadData = await github.graphql(`
+                query($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $number) {
+                      reviewThreads(first: 100) {
+                        nodes {
+                          id
+                          isResolved
+                          comments(first: 100) { nodes { databaseId body } }
+                        }
                       }
                     }
                   }
                 }
-              }
-            `, { owner, repo, number: pull_number });
-            const threads = threadData.repository.pullRequest.reviewThreads.nodes;
-            const thread = threads.find((candidate) => candidate.comments.nodes.some((comment) =>
-              (previousThreadComment && comment.databaseId === previousThreadComment.id) ||
-              (comment.body && comment.body.includes(threadMarker))));
+              `, { owner, repo, number: pull_number });
+              return threadData.repository.pullRequest.reviewThreads.nodes.find((candidate) =>
+                candidate.comments.nodes.some((comment) =>
+                  (commentId && comment.databaseId === commentId) ||
+                  (comment.body && comment.body.includes(marker))));
+            }
 
             if (approved) {
               if (previousThreadComment) {
                 await github.rest.pulls.updateReviewComment({
                   owner, repo, comment_id: previousThreadComment.id, body: compact,
                 });
-              }
-              if (thread && !thread.isResolved) {
-                await github.graphql(`
-                  mutation($threadId: ID!) {
-                    resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
-                  }
-                `, { threadId: thread.id });
+                const currentThread = await findThread(previousThreadComment.id, threadMarker);
+                if (currentThread && !currentThread.isResolved) {
+                  await github.graphql(`
+                    mutation($threadId: ID!) {
+                      resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
+                    }
+                  `, { threadId: currentThread.id });
+                }
               }
             } else if (previousThreadComment) {
               await github.rest.pulls.updateReviewComment({
                 owner, repo, comment_id: previousThreadComment.id, body: compact,
               });
-              if (thread && thread.isResolved) {
+              const currentThread = await findThread(previousThreadComment.id, threadMarker);
+              if (currentThread && currentThread.isResolved) {
                 await github.graphql(`
                   mutation($threadId: ID!) {
                     unresolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } }
                   }
-                `, { threadId: thread.id });
+                `, { threadId: currentThread.id });
               }
             } else {
               const files = await github.paginate(github.rest.pulls.listFiles, {

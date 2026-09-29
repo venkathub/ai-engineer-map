@@ -45,6 +45,7 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("unresolveReviewThread", publisher)
         self.assertIn("createReview", publisher)
         self.assertNotIn('throw new Error("No added diff line', publisher)
+        self.assertIn('^[0-9a-f]{40}$', publisher)
         self.assertIn("This thread remains unresolved", publisher)
 
 
