@@ -55,6 +55,10 @@ Every curriculum topic has a versioned execution profile:
 
 `guided` topics open in the browser lab, `automated` topics have declared shell-free run and verification commands, and `setup-ready` topics expose environment/cost requirements without claiming the topic lab is automated.
 
+Each browser lab loads its execution guide from `curriculum/hoe.json`: status, mode, estimated time and cost, prerequisites, environment requirements, setup/run/verify commands, artifacts, and cleanup. Commands are terminal instructions; the page does not inspect your machine or execute code. For setup-ready GPU topics, the verification command checks the environment only. Credentials stay in your terminal environment or ignored `.env`, never in the browser editor. The browser's Review checklist button does not verify an artifact or mark a topic complete.
+
+Optional lab UI regression: with the site running and an existing Playwright/Chrome installation, run `node tests/lab-browser.cjs` (the same `NODE_PATH`, `CHROME_PATH`, and `BASE_URL` overrides as the roadmap regression apply).
+
 ## AI contributor kit
 
 - [`AGENTS.md`](AGENTS.md) — authoritative repository instructions for coding agents
