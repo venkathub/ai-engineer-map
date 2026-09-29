@@ -6,15 +6,17 @@ The workflow runs trusted code from the base branch through `pull_request_target
 
 ## Authentication
 
-Configure the Anthropic API key as an encrypted GitHub Actions repository secret:
+The gate tries a Claude Pro/Max subscription OAuth token first, then falls back to a metered Anthropic API key only when the subscription route is missing or fails. Configure both as encrypted GitHub Actions repository secrets:
 
 ```bash
+claude setup-token
+gh secret set CLAUDE_CODE_OAUTH_TOKEN
 gh secret set ANTHROPIC_API_KEY
 ```
 
-Paste an Anthropic Console API key at the hidden prompt. API usage is billed by Anthropic separately from a Claude web subscription. The review defaults to `claude-sonnet-5`, which supports structured outputs. It uses adaptive thinking at high effort with a hard 32,000-output-token ceiling; a truncated response fails closed. Override the model without changing the workflow by setting the non-secret Actions variable `CLAUDE_REVIEW_MODEL` to another compatible model, then verify its thinking configuration remains compatible.
+Generate the OAuth token from the intended Pro or Max account and paste each credential at its hidden `gh` prompt. Successful subscription reviews avoid metered API usage. If OAuth is unavailable, expired, rejected, or the Claude Code Action fails before producing a structured result, the fallback defaults to `claude-sonnet-5`. API usage is then billed separately from the web subscription. The fallback uses adaptive thinking at high effort with a hard 32,000-output-token ceiling; a truncated response fails closed. Override its model with the non-secret Actions variable `CLAUDE_REVIEW_MODEL`, then verify its thinking configuration remains compatible.
 
-A local Anthropic API key may remain in the ignored `.env` for hands-on exercises, but the workflow reads its own encrypted Actions secret. Never place the key in workflow YAML, pull-request text, logs, or repository variables. Rotate it according to the provider's policy.
+Local credentials may remain in the ignored `.env` for hands-on exercises, but the workflow reads encrypted Actions secrets. Never place either value in workflow YAML, pull-request text, logs, or repository variables. Rotate them according to the provider's policy. Each report identifies whether subscription OAuth or the API fallback produced its verdict without exposing credential details.
 
 ## Review and merge lifecycle
 
@@ -37,10 +39,11 @@ gh pr checks PR_NUMBER
 gh pr view PR_NUMBER --comments
 ```
 
-Rotate the authentication secret with:
+Rotate either authentication secret with:
 
 ```bash
 gh secret set ANTHROPIC_API_KEY
+gh secret set CLAUDE_CODE_OAUTH_TOKEN
 ```
 
 The workflow deliberately does not use or execute code from the pull-request head. Do not change the trusted-base checkout to the head SHA and do not run downloaded PR artifacts in this privileged workflow.

@@ -55,5 +55,10 @@ class ClaudeReviewGateTests(unittest.TestCase):
         self.assertIn("@\u200bteam", report)
         self.assertNotIn("<!-- hidden -->", report)
 
+    def test_report_names_authentication_route(self):
+        review = review_gate.normalize_review(review_payload())
+        report = review_gate.render_review(review, "abc123", "Claude subscription OAuth")
+        self.assertIn("Review route: `Claude subscription OAuth`", report)
+
 if __name__ == "__main__":
     unittest.main()

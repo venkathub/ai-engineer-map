@@ -90,7 +90,7 @@ def normalize_review(raw: str) -> dict[str, Any]:
     }
 
 
-def render_review(review: dict[str, Any], reviewed_sha: str) -> str:
+def render_review(review: dict[str, Any], reviewed_sha: str, route: str = "") -> str:
     approved = review["verdict"] == "APPROVED"
     icon = "✅" if approved else "❌"
     lines = [
@@ -101,6 +101,8 @@ def render_review(review: dict[str, Any], reviewed_sha: str) -> str:
         "",
         _safe_markdown(review["summary"]),
     ]
+    if route:
+        lines.extend(["", f"Review route: `{_safe_markdown(route).replace('`', "'")}`"])
 
     findings = review["findings"]
     lines.extend(["", f"### Actionable findings ({len(findings)})", ""])
@@ -176,6 +178,7 @@ def main() -> int:
     auth_configured = os.environ.get("CLAUDE_AUTH_CONFIGURED") == "true"
     action_outcome = os.environ.get("CLAUDE_ACTION_OUTCOME", "skipped")
     raw_review = os.environ.get("CLAUDE_REVIEW_JSON", "")
+    review_route = os.environ.get("REVIEW_ROUTE", "")
 
     try:
         if not auth_configured:
@@ -187,7 +190,7 @@ def main() -> int:
             raise ReviewError(f"Claude Code Action outcome was {action_outcome!r}")
         review = normalize_review(raw_review)
         approved = review["verdict"] == "APPROVED"
-        report = render_review(review, reviewed_sha)
+        report = render_review(review, reviewed_sha, review_route)
         write_outputs(approved, review["verdict"], len(review["findings"]))
     except ReviewError as exc:
         report = render_unavailable(str(exc), reviewed_sha)

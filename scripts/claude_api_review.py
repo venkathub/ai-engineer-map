@@ -223,7 +223,7 @@ def main() -> int:
         raw_review, usage = call_claude(api_key, model, build_prompt(diff, load_rules(), reviewed_sha))
         review = normalize_review(raw_review)
         approved = review["verdict"] == "APPROVED"
-        report = render_review(review, reviewed_sha)
+        report = render_review(review, reviewed_sha, "Anthropic API fallback")
         write_outputs(approved, review["verdict"], len(review["findings"]))
         input_tokens = usage.get("input_tokens", "unknown")
         output_tokens = usage.get("output_tokens", "unknown")
