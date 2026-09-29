@@ -45,6 +45,12 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
             with self.subTest(index=index), self.assertRaises(decision.ReviewError):
                 decision.select_result(*values)
 
+    def test_rejects_unknown_subscription_verdict_before_route_selection(self):
+        with self.assertRaisesRegex(decision.ReviewError, "subscription gate emitted"):
+            decision.select_result(
+                "success", "success", "false", "UNKNOWN", "0", "skipped", "", "", ""
+            )
+
     def test_rejects_inconsistent_approval_and_verdict(self):
         with self.assertRaises(decision.ReviewError):
             decision.select_result(

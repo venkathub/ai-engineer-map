@@ -38,6 +38,8 @@ def select_result(
     for route, outcome in outcomes.items():
         if outcome not in VALID_STEP_OUTCOMES:
             raise ReviewError(f"{route} emitted an invalid GitHub Actions outcome")
+    if subscription_outcome == "success" and subscription_verdict not in VALID_VERDICTS:
+        raise ReviewError("subscription gate emitted an invalid verdict")
     subscription_is_valid = subscription_outcome == "success" and subscription_verdict != "ERROR"
     if subscription_is_valid:
         if subscription_gate_outcome != "success":
