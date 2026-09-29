@@ -29,7 +29,9 @@ def _plain_text(value: str) -> str:
     """Flatten model text and neutralize mentions and automatically linked URLs."""
     flattened = " ".join(value.split())
     return (
-        flattened.replace("@", "@\u200b")
+        flattened.replace("<!--", "<\u200b!--")
+        .replace("-->", "--\u200b>")
+        .replace("@", "@\u200b")
         .replace("://", ":\u200b//")
         .replace("www.", "www\u200b.")
     )
@@ -46,6 +48,21 @@ def _safe_markdown(value: str) -> str:
 
 def _inline_code(value: str) -> str:
     return _plain_text(value).replace("`", "'")
+
+
+def validate_subscription_result(
+    auth_configured: bool, action_outcome: str, raw_review: str
+) -> dict[str, Any]:
+    if not auth_configured:
+        raise ReviewError(
+            "Configure exactly one repository Actions secret: ANTHROPIC_API_KEY, or "
+            "CLAUDE_CODE_OAUTH_TOKEN for a supported Claude Pro/Max subscription."
+        )
+    if action_outcome != "success":
+        raise ReviewError(f"Claude Code Action outcome was {action_outcome!r}")
+    if not raw_review.strip():
+        raise ReviewError("Claude Code Action succeeded without a structured_output value")
+    return normalize_review(raw_review)
 
 
 def normalize_review(raw: str) -> dict[str, Any]:
@@ -202,14 +219,7 @@ def main() -> int:
     review_route = os.environ.get("REVIEW_ROUTE", "")
 
     try:
-        if not auth_configured:
-            raise ReviewError(
-                "Configure exactly one repository Actions secret: ANTHROPIC_API_KEY, or "
-                "CLAUDE_CODE_OAUTH_TOKEN for a supported Claude Pro/Max subscription."
-            )
-        if action_outcome != "success":
-            raise ReviewError(f"Claude Code Action outcome was {action_outcome!r}")
-        review = normalize_review(raw_review)
+        review = validate_subscription_result(auth_configured, action_outcome, raw_review)
         approved = review["verdict"] == "APPROVED"
         report = render_review(review, reviewed_sha, review_route)
         write_outputs(approved, review["verdict"], len(review["findings"]))

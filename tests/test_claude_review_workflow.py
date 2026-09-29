@@ -22,6 +22,15 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("pull-requests: read", analyze)
         self.assertNotIn("pull-requests: write", analyze)
 
+    def test_oauth_detection_never_prints_the_secret(self):
+        detection = self.workflow.split("      - name: Detect subscription authentication", 1)[
+            1
+        ].split("      - name: Review with Claude subscription", 1)[0]
+        self.assertNotIn('echo "$CLAUDE_CODE_OAUTH_TOKEN"', detection)
+        self.assertNotIn("echo $CLAUDE_CODE_OAUTH_TOKEN", detection)
+        self.assertIn('echo "configured=true"', detection)
+        self.assertIn('echo "configured=false"', detection)
+
     def test_required_gate_depends_on_analysis_and_publication(self):
         gate = self.workflow.split("  claude-review:", 1)[1]
         self.assertIn("needs: [analyze, publish]", gate)

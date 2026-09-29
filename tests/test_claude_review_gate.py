@@ -54,6 +54,13 @@ class ClaudeReviewGateTests(unittest.TestCase):
         self.assertNotIn("@team", report)
         self.assertIn("@\u200bteam", report)
         self.assertNotIn("<!-- hidden -->", report)
+        self.assertNotIn("<!--", report.split("\n", 1)[1])
+        self.assertNotIn("-->", report.split("\n", 1)[1])
+
+    def test_subscription_success_requires_structured_output(self):
+        with self.assertRaises(review_gate.ReviewError) as raised:
+            review_gate.validate_subscription_result(True, "success", "   ")
+        self.assertIn("without a structured_output value", str(raised.exception))
 
     def test_report_renders_model_text_as_inert_markdown(self):
         payload = json.loads(review_payload())
