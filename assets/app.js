@@ -90,6 +90,8 @@ function renderHome() {
 
 function renderRoadmapPage() {
   const state = { track: params.get("track") || "all", query: "", selected: params.get("id") || "model-apis", hideDone: false };
+  if (!curriculum.tracks.some((item) => item.id === state.track)) state.track = "all";
+  const graph = $("#dependency-graph");
   const filterBox = $("#track-filters");
   filterBox.innerHTML = [{id:"all", title:"All tracks"}, ...curriculum.tracks].map((item) =>
     `<button class="chip" data-track="${item.id}" aria-pressed="${state.track === item.id}">${escapeHtml(item.title)}</button>`).join("");
@@ -102,29 +104,101 @@ function renderRoadmapPage() {
       (!needle || [item.title, item.summary, ...item.outcomes, track(item.track).title].join(" ").toLowerCase().includes(needle)));
   }
 
-  function draw() {
+  function draw(focusTarget) {
     $$("[data-track]", filterBox).forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.track === state.track)));
     const visible = filtered();
+    state.selected = visible.find((item) => item.id === state.selected)?.id || visible[0]?.id || null;
     const visibleTracks = curriculum.tracks.filter((item) => visible.some((entry) => entry.track === item.id));
     $("#roadmap-grid").innerHTML = visibleTracks.length ? visibleTracks.map((lane, laneIndex) => `
       <section class="lane" style="--track:${lane.color}">
         <header><span>${String(laneIndex + 1).padStart(2,"0")} · ${escapeHtml(lane.phase)}</span><h2>${escapeHtml(lane.title)}</h2></header>
         ${visible.filter((item) => item.track === lane.id).map((item) => `
-          <button class="topic-card ${completed.has(item.id) ? "is-done" : ""} ${!isUnlocked(item) ? "is-locked" : ""} ${state.selected === item.id ? "is-selected" : ""}" data-topic="${item.id}">
+          <button class="topic-card ${completed.has(item.id) ? "is-done" : ""} ${!isUnlocked(item) ? "is-locked" : ""} ${state.selected === item.id ? "is-selected" : ""}" data-topic="${item.id}" aria-pressed="${state.selected === item.id}">
             <span class="topic-status">${completed.has(item.id) ? "✓ complete" : isUnlocked(item) ? item.level : "prerequisite open"}</span>
             <b>${escapeHtml(item.title)}</b><small>${item.minutes} min</small>
           </button>`).join("")}
       </section>`).join("") : `<div class="empty">No topics match this view.</div>`;
     renderInspector(state.selected);
+    renderDependencies();
+    $("#roadmap-status").textContent = `${visible.length} topics shown.${state.selected ? ` Selected: ${concept(state.selected).title}.` : " No topics match. Clear filters to continue."}`;
     $("#map-progress").textContent = `${completed.size}/${curriculum.concepts.length}`;
     $("#progress-fill").style.width = `${donePercent()}%`;
+    if (focusTarget) {
+      const target = $(focusTarget) || $("[data-topic].is-selected") || $("#search");
+      target.focus({preventScroll:true});
+      target.scrollIntoView({block:"nearest", inline:"nearest", behavior:"instant"});
+    }
   }
 
+  function renderDependencies() {
+    const item = concept(state.selected);
+    if (!item) { graph.innerHTML = ""; return; }
+    const groups = [item.prerequisites.map(concept), [item], curriculum.concepts.filter((entry) => entry.prerequisites.includes(item.id))];
+    const labels = ["Prerequisites", "Selected topic", "Next topics"];
+    graph.innerHTML = `<svg class="dependency-edges" aria-hidden="true" focusable="false"><defs><marker id="dependency-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><g></g></svg>` + groups.map((items, index) => `
+      <section class="dependency-column" aria-label="${labels[index]}"><h3>${labels[index]}</h3>${items.length ? items.map((entry) => `<button class="dependency-node ${index === 1 ? "is-current" : ""}" data-dependency="${entry.id}" data-column="${index}" tabindex="${index === 1 ? 0 : -1}" aria-label="${escapeHtml(`${entry.title}. ${index === 0 ? `Prerequisite of ${item.title}` : index === 2 ? `Requires ${item.title}` : "Selected topic"}${completed.has(entry.id) ? ". Complete" : ""}`)}"><span>${escapeHtml(entry.title)}</span><small>${escapeHtml(track(entry.track).title)}${completed.has(entry.id) ? " · Complete" : ""}</small></button>`).join("") : `<p>${index === 0 ? "No prerequisites. Start here." : "No dependent topics yet."}</p>`}</section>`).join("");
+    drawEdges();
+  }
+
+  function drawEdges() {
+    const selected = $('[data-column="1"]', graph);
+    if (!selected) return;
+    const bounds = graph.getBoundingClientRect();
+    const svg = $("svg", graph);
+    svg.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+    const point = (node, end) => {
+      const rect = node.getBoundingClientRect();
+      return {x:(end ? rect.right : rect.left) - bounds.left, y:rect.top + rect.height / 2 - bounds.top};
+    };
+    $("g", svg).innerHTML = $$('[data-dependency]:not([data-column="1"])', graph).map((node) => {
+      const incoming = node.dataset.column === "0";
+      const from = point(incoming ? node : selected, true);
+      const to = point(incoming ? selected : node, false);
+      const mid = (from.x + to.x) / 2;
+      return `<path d="M ${from.x} ${from.y} C ${mid} ${from.y}, ${mid} ${to.y}, ${to.x} ${to.y}" marker-end="url(#dependency-arrow)"/>`;
+    }).join("");
+  }
+
+  new ResizeObserver(drawEdges).observe(graph);
+  graph.addEventListener("focusin", (event) => {
+    if (!event.target.matches("[data-dependency]")) return;
+    $$("[data-dependency]", graph).forEach((node) => { node.tabIndex = node === event.target ? 0 : -1; });
+  });
+  graph.addEventListener("keydown", (event) => {
+    const node = event.target.closest("[data-dependency]");
+    if (!node || event.altKey || event.ctrlKey || event.metaKey) return;
+    const nodes = $$("[data-dependency]", graph);
+    const column = nodes.filter((entry) => entry.dataset.column === node.dataset.column);
+    let target;
+    if (event.key === "Home") target = nodes[0];
+    else if (event.key === "End") target = nodes.at(-1);
+    else if (event.key === "ArrowUp") target = column[Math.max(0, column.indexOf(node) - 1)];
+    else if (event.key === "ArrowDown") target = column[Math.min(column.length - 1, column.indexOf(node) + 1)];
+    else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const next = Number(node.dataset.column) + (event.key === "ArrowLeft" ? -1 : 1);
+      const candidates = nodes.filter((entry) => Number(entry.dataset.column) === next);
+      target = candidates[Math.min(column.indexOf(node), candidates.length - 1)] || node;
+    } else return;
+    event.preventDefault();
+    target.focus({preventScroll:true});
+    target.scrollIntoView({block:"nearest", inline:"nearest", behavior:"instant"});
+  });
+  graph.addEventListener("click", (event) => {
+    const node = event.target.closest("[data-dependency]");
+    if (!node) return;
+    const hidden = !filtered().some((item) => item.id === node.dataset.dependency);
+    if (hidden) {
+      state.track = "all"; state.query = ""; state.hideDone = false;
+      $("#search").value = ""; $("#hide-complete").checked = false;
+    }
+    state.selected = node.dataset.dependency;
+    draw('[data-column="1"]');
+    if (hidden) $("#roadmap-status").textContent += " Filters cleared to show the related topic.";
+  });
+
   function renderInspector(id) {
-    const matches = filtered();
-    const item = matches.find((entry) => entry.id === id) || matches[0] || concept(id);
-    if (!item) return;
-    state.selected = item.id;
+    const item = concept(id);
+    if (!item) { $("#concept-inspector").innerHTML = '<p>No topic selected.</p>'; return; }
     const prereqs = item.prerequisites.map(concept).filter(Boolean);
     $("#concept-inspector").innerHTML = `
       <div class="inspector-top"><span class="overline">${escapeHtml(track(item.track).title)}</span><span>${item.minutes} min</span></div>
@@ -133,13 +207,13 @@ function renderRoadmapPage() {
       <h3>Prerequisites</h3><div class="mini-links">${prereqs.length ? prereqs.map((entry) => `<a href="${queryLink("concept.html",entry.id)}">${escapeHtml(entry.title)}</a>`).join("") : "<span>Start here</span>"}</div>
       <div class="inspector-actions"><a class="button primary" href="${queryLink("concept.html",item.id)}">Open concept</a><button class="button ghost" id="toggle-complete">${completed.has(item.id) ? "Mark incomplete" : "Mark complete"}</button></div>
       <p class="reviewed">Technical review · ${curriculum.reviewedAt}</p>`;
-    $("#toggle-complete").addEventListener("click", () => { toggleDone(item.id); draw(); });
+    $("#toggle-complete").addEventListener("click", () => { toggleDone(item.id); draw("#toggle-complete"); });
   }
 
   filterBox.addEventListener("click", (event) => { const button = event.target.closest("[data-track]"); if (button) { state.track = button.dataset.track; draw(); } });
   $("#search").addEventListener("input", (event) => { state.query = event.target.value; draw(); });
   $("#hide-complete").addEventListener("change", (event) => { state.hideDone = event.target.checked; draw(); });
-  $("#roadmap-grid").addEventListener("click", (event) => { const card = event.target.closest("[data-topic]"); if (card) { state.selected = card.dataset.topic; draw(); } });
+  $("#roadmap-grid").addEventListener("click", (event) => { const card = event.target.closest("[data-topic]"); if (card) { state.selected = card.dataset.topic; draw("[data-topic].is-selected"); } });
   draw();
 }
 

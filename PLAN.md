@@ -75,7 +75,7 @@ Every completed lesson contains:
 - [x] Search, track filters, dependency state, and local progress
 - [x] Concept, lesson, and hands-on lab page designs
 - [x] Recommended next concepts, estimated time, and difficulty labels
-- [ ] Visual dependency edges and a11y-tested keyboard graph navigation
+- [x] Visual dependency edges and keyboard-tested graph navigation (selected topic, prerequisites, and immediate dependents)
 
 ### M4 — Core tracks
 
