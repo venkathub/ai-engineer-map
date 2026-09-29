@@ -46,7 +46,19 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("createReview", publisher)
         self.assertNotIn('throw new Error("No added diff line', publisher)
         self.assertIn('^[0-9a-f]{40}$', publisher)
+        self.assertIn("per_page: 50", publisher)
+        self.assertIn("lineBudget = 10000", publisher)
         self.assertIn("This thread remains unresolved", publisher)
+
+    def test_supply_chain_and_model_freshness_are_monitored(self):
+        dependabot = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+        freshness = (
+            ROOT / ".github" / "workflows" / "claude-model-freshness.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("package-ecosystem: github-actions", dependabot)
+        self.assertIn("schedule:", freshness)
+        self.assertIn("workflow_dispatch:", freshness)
+        self.assertIn("--verify-model-only", freshness)
 
 
 if __name__ == "__main__":

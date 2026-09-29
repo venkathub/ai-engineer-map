@@ -239,10 +239,27 @@ def load_rules() -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--diff-file", type=Path)
     parser.add_argument("--reviewed-sha")
+    parser.add_argument("--verify-model-only", action="store_true")
     args = parser.parse_args()
+
+    if args.verify_model_only:
+        try:
+            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+            if not api_key:
+                raise ProviderError("ANTHROPIC_API_KEY is not configured")
+            model = resolve_model(os.environ.get("CLAUDE_REVIEW_MODEL"))
+            verify_model(api_key, model)
+            print(f"Anthropic confirmed configured review model: {model}")
+            return 0
+        except (OSError, ValueError, ReviewError) as exc:
+            print(f"Claude model freshness check failed: {exc}")
+            return 1
+
+    if args.output is None:
+        parser.error("--output is required unless --verify-model-only is used")
 
     reviewed_sha = args.reviewed_sha or os.environ.get("REVIEWED_SHA", "")
     try:

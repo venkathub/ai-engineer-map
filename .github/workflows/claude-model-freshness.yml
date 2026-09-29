@@ -1,0 +1,25 @@
+name: Claude Model Freshness
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out trusted default branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify configured Anthropic model
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL }}
+        run: python3 scripts/claude_api_review.py --verify-model-only

@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -128,6 +129,17 @@ class ClaudeApiReviewTests(unittest.TestCase):
                 api_review._request(mock.Mock(), max_bytes=3)
         response.__enter__.return_value.read.assert_called_once_with(4)
         self.assertIn("3-byte limit", str(raised.exception))
+
+    def test_verify_model_only_mode_skips_review_request(self):
+        with (
+            mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "hidden-key"}, clear=True),
+            mock.patch.object(sys, "argv", ["claude_api_review.py", "--verify-model-only"]),
+            mock.patch.object(api_review, "verify_model") as verify,
+            mock.patch.object(api_review, "call_claude") as review,
+        ):
+            self.assertEqual(api_review.main(), 0)
+        verify.assert_called_once_with("hidden-key", api_review.DEFAULT_MODEL)
+        review.assert_not_called()
 
 
 def urllib_error(status, body):

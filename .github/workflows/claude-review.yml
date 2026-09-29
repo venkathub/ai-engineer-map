@@ -227,16 +227,20 @@ jobs:
                 `, { threadId: currentThread.id });
               }
             } else {
-              const files = await github.paginate(github.rest.pulls.listFiles, {
-                owner, repo, pull_number, per_page: 100,
+              const filesResponse = await github.rest.pulls.listFiles({
+                owner, repo, pull_number, per_page: 50, page: 1,
               });
+              const files = filesResponse.data;
               let anchor = null;
               let deletionAnchor = null;
-              for (const file of files) {
+              let lineBudget = 10000;
+              fileScan: for (const file of files) {
                 if (!file.patch) continue;
                 let oldLine = 0;
                 let newLine = 0;
                 for (const line of file.patch.split("\n")) {
+                  lineBudget -= 1;
+                  if (lineBudget < 0) break fileScan;
                   const header = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
                   if (header) {
                     oldLine = Number(header[1]);
