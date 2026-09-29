@@ -4,6 +4,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DATA = json.loads((ROOT / "curriculum" / "concepts.json").read_text(encoding="utf-8"))
+HOE = json.loads((ROOT / "curriculum" / "hoe.json").read_text(encoding="utf-8"))
 
 
 class CurriculumCoverageTest(unittest.TestCase):
@@ -38,6 +39,17 @@ class CurriculumCoverageTest(unittest.TestCase):
             with self.subTest(track=track["id"]):
                 self.assertTrue(track["refs"])
                 self.assertTrue(all(references[key]["url"].startswith("https://") for key in track["refs"]))
+
+    def test_every_topic_has_an_execution_profile(self):
+        topic_ids = {topic["id"] for topic in DATA["concepts"]}
+        self.assertEqual(topic_ids, set(HOE["topics"]))
+        self.assertTrue(set(HOE["topics"].values()).issubset(HOE["profiles"]))
+
+    def test_paid_profiles_are_never_implicitly_automated(self):
+        for profile_id, profile in HOE["profiles"].items():
+            with self.subTest(profile=profile_id):
+                if profile["mode"] in {"byo-api", "gpu"}:
+                    self.assertNotEqual(profile["status"], "automated")
 
 
 if __name__ == "__main__":

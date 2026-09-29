@@ -1,7 +1,10 @@
 import importlib.util
+import contextlib
+import io
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +43,7 @@ class HoeConfigurationTests(unittest.TestCase):
             {"OPENAI_API_KEY": secret, "OPENAI_MODEL": "example-model"},
             which=lambda _: "/bin/example",
         )
-        rendered = hoe.render_human(report)
+        rendered = hoe.render_configuration(report)
         self.assertTrue(report["safe_to_start"])
         self.assertNotIn(secret, rendered)
         self.assertNotIn(secret, json_text(report))
@@ -49,6 +52,46 @@ class HoeConfigurationTests(unittest.TestCase):
         report = hoe.configuration_report("none", "jarvislabs", {}, which=lambda _: "/usr/bin/jl")
         self.assertTrue(report["safe_to_start"])
         self.assertTrue(report["gpu"]["notes"])
+
+
+class HoeExecutionTests(unittest.TestCase):
+    def test_every_topic_resolves_with_acceptance_evidence(self):
+        concepts, catalog = hoe.load_catalog()
+        self.assertEqual(set(concepts), set(catalog["topics"]))
+        for topic_id in concepts:
+            with self.subTest(topic=topic_id):
+                topic = hoe.resolve_topic(topic_id)
+                self.assertTrue(topic["acceptance"])
+                self.assertTrue(topic["artifacts"])
+
+    def test_local_run_executes_declared_argv_without_shell(self):
+        topic = hoe.resolve_topic("embeddings")
+        completed = mock.Mock(returncode=0)
+        with mock.patch.object(hoe.subprocess, "run", return_value=completed) as run:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = hoe.execute_topic(topic, "run", allow_billable=False)
+        self.assertEqual(result, 0)
+        run.assert_called_once_with(
+            ["python3", "labs/rag-retrieval/exercise.py"],
+            cwd=ROOT,
+            check=False,
+        )
+
+    def test_external_cost_mode_requires_explicit_acknowledgement(self):
+        topic = hoe.resolve_topic("peft")
+        with mock.patch.object(hoe.subprocess, "run") as run:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                result = hoe.execute_topic(topic, "verify", allow_billable=False)
+        self.assertEqual(result, 2)
+        run.assert_not_called()
+
+    def test_guided_run_returns_route_without_subprocess(self):
+        topic = hoe.resolve_topic("python-ai")
+        with mock.patch.object(hoe.subprocess, "run") as run:
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = hoe.execute_topic(topic, "run", allow_billable=False)
+        self.assertEqual(result, 0)
+        run.assert_not_called()
 
 
 def json_text(value):

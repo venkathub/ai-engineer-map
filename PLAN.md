@@ -88,7 +88,16 @@ Every completed lesson contains:
 
 The current role-coverage audit contains 104 concepts across 12 tracks. See `docs/CURRICULUM_AUDIT_2026.md` for scope, gaps corrected, hands-on evidence rules, and primary sources.
 
-### M5 — Portfolio and community
+### M5 — Hands-on execution
+
+- [x] Versioned execution schema and one-to-one profile assignment for all concepts
+- [x] Unified list, inspect, run, verify, and environment-check CLI
+- [x] Explicit guided, automated, and setup-ready states
+- [x] Shell-free command validation and paid API/GPU acknowledgement gate
+- [ ] Automate the remaining guided exercises track by track
+- [ ] Surface execution readiness, cost, artifacts, and cleanup in the browser lab
+
+### M6 — Portfolio and community
 
 - Five end-to-end projects with review rubrics
 - Contributor preview workflow

@@ -12,6 +12,7 @@ Build a free, source-backed, hands-on curriculum for engineers who need to under
 - `assets/app.js`: shared client-side data loading, rendering, routing, progress, and lab behavior.
 - `assets/styles.css`: shared design tokens and responsive page system.
 - `curriculum/concepts.json`: single source of truth for tracks, concepts, dependencies, exercises, references, and review date.
+- `curriculum/hoe.json`: execution profiles and the required one-to-one topic assignment; `hoe.schema.json` documents its versioned shape.
 - `content/`: long-form authored material that complements the generated lesson experience.
 - `labs/`: runnable, dependency-free learning exercises.
 - `scripts/validate_curriculum.py`: schema, coverage, freshness, reference, and graph validation.
@@ -56,6 +57,8 @@ Keep the established visual language: near-black shell, warm ivory reading surfa
 ./run.sh --port 9000      # choose another port
 ./run.sh check            # complete local validation
 ./run.sh lab              # run the retrieval teaching lab
-./run.sh hoe              # check optional BYO provider/GPU configuration
+./run.sh hoe list         # list every topic and its execution status
+./run.sh hoe inspect ID   # inspect one resolved exercise contract
+./run.sh hoe run ID       # run a declared free command or show guided steps
 ./run.sh gpu-check        # run the CUDA smoke test on a GPU host
 ```

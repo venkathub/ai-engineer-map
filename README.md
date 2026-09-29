@@ -36,10 +36,22 @@ The core curriculum remains free and dependency-free. Labs that need a hosted mo
 ```bash
 cp .env.example .env
 # Edit .env locally; it is ignored by Git.
-./run.sh hoe --provider openai --gpu jarvislabs
+./run.sh hoe check --provider openai --gpu jarvislabs
 ```
 
 The checker reports only whether required variables and tools exist; it never prints credential values or sends a request. GPU provisioning and billable API calls always remain manual. See [`docs/BYO_LLM_AND_GPU.md`](docs/BYO_LLM_AND_GPU.md) for providers, local OpenAI-compatible endpoints, JarvisLabs execution, storage, and shutdown guidance.
+
+Every curriculum topic has a versioned execution profile:
+
+```bash
+./run.sh hoe list
+./run.sh hoe list --status automated
+./run.sh hoe inspect embeddings
+./run.sh hoe run embeddings
+./run.sh hoe verify embeddings
+```
+
+`guided` topics open in the browser lab, `automated` topics have declared shell-free run and verification commands, and `setup-ready` topics expose environment/cost requirements without claiming the topic lab is automated.
 
 ## AI contributor kit
 

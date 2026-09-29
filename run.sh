@@ -7,6 +7,16 @@ HOST=127.0.0.1
 PORT=8000
 RUN_CHECKS=1
 
+if [ "${1:-}" = hoe ]; then
+  shift
+  command -v python3 >/dev/null 2>&1 || { echo "Python 3 is required." >&2; exit 1; }
+  cd "$PROJECT_DIR"
+  if [ "$#" -eq 0 ]; then
+    set -- check
+  fi
+  exec python3 scripts/hoe.py "$@"
+fi
+
 usage() {
   cat <<'EOF'
 AI Engineer Map runner
@@ -15,7 +25,7 @@ Usage:
   ./run.sh [serve] [--host HOST] [--port PORT] [--no-check]
   ./run.sh check
   ./run.sh lab
-  ./run.sh hoe [--provider PROVIDER] [--gpu BACKEND]
+  ./run.sh hoe <check|list|inspect|run|verify> [OPTIONS]
   ./run.sh gpu-check
   ./run.sh help
 
@@ -23,7 +33,7 @@ Commands:
   serve      Validate, then start the static site (default)
   check      Validate curriculum and run every test
   lab        Run the dependency-free retrieval lab
-  hoe        Check optional BYO LLM and GPU configuration
+  hoe        Inspect, run, or verify hands-on exercises
   gpu-check  Run the CUDA smoke test on a configured GPU host
 
 Examples:
@@ -31,18 +41,16 @@ Examples:
   ./run.sh --port 9000
   ./run.sh serve --host 0.0.0.0 --no-check
   ./run.sh check
-  ./run.sh hoe --provider openai --gpu jarvislabs
+  ./run.sh hoe list --status automated
+  ./run.sh hoe inspect embeddings
+  ./run.sh hoe check --provider openai --gpu jarvislabs
   ./run.sh gpu-check
 EOF
 }
 
-HOE_PROVIDER=none
-HOE_GPU=none
-HOE_ENV_FILE=.env
-
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    serve|check|lab|hoe|gpu-check|help) COMMAND=$1 ;;
+    serve|check|lab|gpu-check|help) COMMAND=$1 ;;
     --host)
       [ "$#" -ge 2 ] || { echo "Missing value for --host" >&2; exit 2; }
       HOST=$2
@@ -55,24 +63,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --no-check) RUN_CHECKS=0 ;;
     -h|--help) COMMAND=help ;;
-    --provider)
-      [ "$COMMAND" = hoe ] || { echo "$1 is only valid with the hoe command" >&2; exit 2; }
-      [ "$#" -ge 2 ] || { echo "Missing value for $1" >&2; exit 2; }
-      HOE_PROVIDER=$2
-      shift
-      ;;
-    --gpu)
-      [ "$COMMAND" = hoe ] || { echo "$1 is only valid with the hoe command" >&2; exit 2; }
-      [ "$#" -ge 2 ] || { echo "Missing value for $1" >&2; exit 2; }
-      HOE_GPU=$2
-      shift
-      ;;
-    --env-file)
-      [ "$COMMAND" = hoe ] || { echo "$1 is only valid with the hoe command" >&2; exit 2; }
-      [ "$#" -ge 2 ] || { echo "Missing value for $1" >&2; exit 2; }
-      HOE_ENV_FILE=$2
-      shift
-      ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
   shift
@@ -90,10 +80,6 @@ case "$COMMAND" in
   help) usage ;;
   check) exec "$PROJECT_DIR/scripts/check.sh" ;;
   lab) exec python3 labs/rag-retrieval/exercise.py ;;
-  hoe)
-    exec python3 scripts/hoe.py check \
-      --provider "$HOE_PROVIDER" --gpu "$HOE_GPU" --env-file "$HOE_ENV_FILE"
-    ;;
   gpu-check) exec python3 gpu/jarvislabs/smoke_test.py ;;
   serve)
     if [ "$RUN_CHECKS" -eq 1 ]; then

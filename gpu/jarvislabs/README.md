@@ -3,7 +3,7 @@
 This directory contains jobs that learners submit deliberately; repository scripts never create paid infrastructure.
 
 ```bash
-./run.sh hoe --gpu jarvislabs
+./run.sh hoe check --gpu jarvislabs
 jl gpus
 jl run gpu/jarvislabs/smoke_test.py --gpu L4 --requirements requirements/hoe-gpu.txt
 ```
