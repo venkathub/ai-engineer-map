@@ -29,6 +29,14 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("Worst-case sleeps total 700 seconds", analyze)
         self.assertIn('then "missing"', analyze)
         self.assertIn("was not queued", analyze)
+        self.assertNotIn("startup_failure|stale", analyze)
+
+    def test_default_model_has_bootstrap_verification_evidence(self):
+        docs = (ROOT / "docs" / "CLAUDE_PR_REVIEW.md").read_text(encoding="utf-8")
+        self.assertIn("Pre-merge verification record", docs)
+        self.assertIn("id: claude-sonnet-5", docs)
+        self.assertIn("type: model", docs)
+        self.assertIn("f6790f6b24e387a4b9f80211c39677cf8aa0b3f0", docs)
 
     def test_oauth_detection_never_prints_the_secret(self):
         detection = self.workflow.split("      - name: Detect subscription authentication", 1)[

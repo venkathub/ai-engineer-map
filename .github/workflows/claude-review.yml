@@ -110,7 +110,7 @@ jobs:
                   exit 1
                 fi
                 ;;
-              failure|cancelled|timed_out|action_required|startup_failure|stale)
+              failure|cancelled|timed_out|action_required|startup_failure)
                 echo "curriculum-and-labs did not pass for ${HEAD_SHA}." >&2
                 exit 1
                 ;;
