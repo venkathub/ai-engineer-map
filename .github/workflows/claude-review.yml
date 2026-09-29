@@ -42,7 +42,7 @@ jobs:
         id: subscription
         if: steps.oauth.outputs.configured == 'true'
         continue-on-error: true
-        uses: anthropics/claude-code-action@8ce9314fa9a404564fa7e954cd84f25bcba2b829 # v1.0.236
+        uses: anthropics/claude-code-action@8ce9314fa9a404564fa7e954cd84f25bcba2b829 # v1.0.236; verified tag target, see docs/CLAUDE_PR_REVIEW.md
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -237,11 +237,15 @@ jobs:
                 owner, repo, pull_number, per_page: 50, page: 1,
               });
               const files = filesResponse.data;
+              const safeAnchorPath = (path) =>
+                typeof path === "string" && path.length > 0 && path.length <= 1024 &&
+                !path.startsWith("/") && !path.includes("\\") &&
+                !path.split("/").includes("..") && !/[\u0000-\u001f\u007f]/.test(path);
               let anchor = null;
               let deletionAnchor = null;
               let lineBudget = 10000;
               fileScan: for (const file of files) {
-                if (!file.patch) continue;
+                if (!file.patch || !safeAnchorPath(file.filename)) continue;
                 let oldLine = 0;
                 let newLine = 0;
                 for (const line of file.patch.split("\n")) {

@@ -7,7 +7,13 @@ import argparse
 import os
 from pathlib import Path
 
-from claude_review_gate import ReviewError, render_unavailable, validate_reviewed_sha, write_outputs
+from claude_review_gate import (
+    MAX_FINDINGS,
+    ReviewError,
+    render_unavailable,
+    validate_reviewed_sha,
+    write_outputs,
+)
 
 VALID_VERDICTS = {"APPROVED", "CHANGES_REQUESTED", "ERROR"}
 
@@ -51,10 +57,13 @@ def select_result(
     if not finding_count.isdigit():
         raise ReviewError("selected review route did not emit a valid finding count")
     count = int(finding_count)
-    if (verdict == "APPROVED" and count != 0) or (verdict == "CHANGES_REQUESTED" and count < 1):
+    valid_count = {
+        "APPROVED": count == 0,
+        "CHANGES_REQUESTED": 1 <= count <= MAX_FINDINGS,
+        "ERROR": count == 0,
+    }[verdict]
+    if not valid_count:
         raise ReviewError("selected review route emitted inconsistent verdict and finding count")
-    if verdict == "ERROR" and count != 0:
-        raise ReviewError("failed review route emitted a nonzero finding count")
     return approved == "true", verdict, count
 
 

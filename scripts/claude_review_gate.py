@@ -14,6 +14,7 @@ MARKER = "<!-- claude-pr-review -->"
 VERDICTS = {"APPROVED", "CHANGES_REQUESTED"}
 SEVERITIES = {"critical", "high", "medium", "low"}
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+MAX_FINDINGS = 100
 
 
 class ReviewError(ValueError):
@@ -92,6 +93,8 @@ def normalize_review(raw: str) -> dict[str, Any]:
     findings = review.get("findings")
     if not isinstance(findings, list):
         raise ReviewError("findings must be a list")
+    if len(findings) > MAX_FINDINGS:
+        raise ReviewError(f"findings must contain at most {MAX_FINDINGS} items")
     normalized_findings: list[dict[str, Any]] = []
     for index, finding in enumerate(findings, start=1):
         if not isinstance(finding, dict):

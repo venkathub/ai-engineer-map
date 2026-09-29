@@ -54,6 +54,8 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn('^[0-9a-f]{40}$', publisher)
         self.assertIn("per_page: 50", publisher)
         self.assertIn("lineBudget = 10000", publisher)
+        self.assertIn("safeAnchorPath", publisher)
+        self.assertIn('!path.split("/").includes("..")', publisher)
         self.assertIn("This thread remains unresolved", publisher)
 
     def test_supply_chain_and_model_freshness_are_monitored(self):

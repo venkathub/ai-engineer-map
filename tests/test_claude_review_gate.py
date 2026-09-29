@@ -53,6 +53,21 @@ class ClaudeReviewGateTests(unittest.TestCase):
             with self.assertRaises(review_gate.ReviewError):
                 review_gate.normalize_review(json.dumps(payload))
 
+    def test_findings_are_bounded(self):
+        finding = {
+            "id": "bounded",
+            "severity": "low",
+            "path": "file.py",
+            "line": 1,
+            "title": "Finding",
+            "details": "Details",
+            "recommendation": "Fix it",
+        }
+        payload = json.loads(review_payload("CHANGES_REQUESTED", [finding]))
+        payload["findings"] = [finding] * (review_gate.MAX_FINDINGS + 1)
+        with self.assertRaises(review_gate.ReviewError):
+            review_gate.normalize_review(json.dumps(payload))
+
     def test_reviewed_sha_requires_full_lowercase_commit_id(self):
         valid = "b" * 40
         self.assertEqual(review_gate.validate_reviewed_sha(valid), valid)

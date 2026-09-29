@@ -56,6 +56,8 @@ The pinned Claude Code Action receives a job-scoped `GITHUB_TOKEN` limited by Gi
 
 Every workflow action is pinned to a full commit SHA. The Claude action remains the most privileged supply-chain dependency because it receives the OAuth secret and network access. Dependabot checks GitHub Actions weekly, but every proposed SHA rotation requires manual source/changelog review before merge. If an upstream pin is suspected of compromise, disable the affected workflow, rotate exposed credentials, inspect recent runs, and adopt a reviewed replacement SHA; a tag update alone is never trusted.
 
+Pin verification record: Anthropic's official annotated [`v1.0.236` tag](https://github.com/anthropics/claude-code-action/releases/tag/v1.0.236) peels to commit [`8ce9314fa9a404564fa7e954cd84f25bcba2b829`](https://github.com/anthropics/claude-code-action/commit/8ce9314fa9a404564fa7e954cd84f25bcba2b829), which is the workflow pin. GitHub reports the tag and commit as unsigned, so this is provenance evidence, not cryptographic identity proof; maintainers must review upstream source/history and Dependabot-proposed replacements before rotating it.
+
 The separate `Claude Model Freshness` workflow runs weekly and on demand. It uses the non-billing model metadata endpoint to confirm the configured/default API model before normal pull-request traffic depends on it.
 
 For public repositories, ensure the repository or organization Actions policy explicitly permits `pull_request_target`. GitHub has announced enforcement of its default blocking policy for that event beginning November 2, 2026; the review gate must fail closed rather than silently bypass review if policy blocks the workflow.

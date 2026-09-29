@@ -58,6 +58,18 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
             decision.select_result(
                 "failure", "skipped", "", "", "", "success", "false", "CHANGES_REQUESTED", "0"
             )
+        with self.assertRaises(decision.ReviewError):
+            decision.select_result(
+                "failure",
+                "skipped",
+                "",
+                "",
+                "",
+                "success",
+                "false",
+                "CHANGES_REQUESTED",
+                str(decision.MAX_FINDINGS + 1),
+            )
 
     def test_failure_report_is_written_when_route_report_is_missing(self):
         with tempfile.TemporaryDirectory() as directory:
