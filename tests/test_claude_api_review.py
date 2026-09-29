@@ -54,6 +54,13 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertEqual(request.call_count, 1)
         self.assertIn("head changed", str(raised.exception))
 
+    def test_fetch_diff_requires_github_token_before_network(self):
+        with mock.patch.object(api_review, "_request") as request:
+            with self.assertRaises(api_review.ProviderError) as raised:
+                api_review.fetch_pull_request_diff("owner/repo", 4, "a" * 40, "")
+        request.assert_not_called()
+        self.assertIn("token is required", str(raised.exception))
+
     def test_verify_model_accepts_exact_live_catalog_id(self):
         model_record = {"id": "claude-sonnet-5", "type": "model"}
         with mock.patch.object(

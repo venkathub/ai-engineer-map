@@ -19,6 +19,7 @@ PENDING_MARKER = "<!-- claude-review-thread -->"
 ROUND_MARKER = "<!-- claude-review-round:"
 FINDING_MARKER = "<!-- claude-review-finding:"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+ROUND_RE = re.compile(r"<!-- claude-review-round:([0-9a-f]{40})(?::r([1-9][0-9]*))? -->")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 BLOCKING = {"critical", "high", "medium"}
 MAX_FILES = 300
@@ -119,6 +120,7 @@ def diff_anchors(files: list[dict[str, Any]]) -> tuple[dict[str, set[int]], dict
         for text in patch.splitlines():
             budget -= 1
             if budget < 0:
+                print("Claude publisher warning: diff-anchor scan reached its 50,000-line limit")
                 return right, left, first
             header = re.match(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", text)
             if header:
@@ -265,6 +267,22 @@ def finding_body(finding: dict[str, Any], sha: str, round_number: int) -> str:
     )
 
 
+def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[str, Any] | None]:
+    """Return a stable round for this SHA using explicit markers, not comment ordering."""
+    records: list[tuple[dict[str, Any], str, int | None]] = []
+    for comment in comments:
+        match = ROUND_RE.search(comment.get("body") or "")
+        if match:
+            records.append((comment, match.group(1), int(match.group(2)) if match.group(2) else None))
+    same = next((record for record in records if record[1] == sha), None)
+    explicit_max = max((record[2] or 0 for record in records), default=0)
+    if same:
+        # Old markers had no explicit round. Preserve their observed round once,
+        # then rewrite them to the explicit format on this publication.
+        return same[2] or max(explicit_max, 1), same[0]
+    return explicit_max + 1, None
+
+
 def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]]) -> None:
     artifact = json.loads(args.artifact.read_text(encoding="utf-8"))
     if artifact.get("schema_version") != 1 or artifact.get("reviewed_sha") != args.sha:
@@ -299,9 +317,7 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     if blocking_count != int(expected_count):
         raise PublishError("review artifact disagrees with the blocking finding count")
 
-    previous_rounds = [item for item in issue_comments if ROUND_MARKER in (item.get("body") or "")]
-    same_round = next((item for item in previous_rounds if f"{ROUND_MARKER}{args.sha} -->" in (item.get("body") or "")), None)
-    round_number = 1 + sum(1 for item in previous_rounds if item is not same_round)
+    round_number, same_round = review_round(issue_comments, args.sha)
     counts = {severity: 0 for severity in ("critical", "high", "medium", "low")}
     for finding in findings:
         severity = finding.get("severity")
@@ -309,7 +325,7 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
             raise PublishError("review artifact contains an invalid severity")
         counts[severity] += 1
     summary = [
-        f"{ROUND_MARKER}{args.sha} -->",
+        f"{ROUND_MARKER}{args.sha}:r{round_number} -->",
         f"### Claude review round {round_number} — {inert(review['verdict'])}",
         "",
         f"Reviewed commit: `{args.sha}`",

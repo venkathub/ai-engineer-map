@@ -96,14 +96,15 @@ def fetch_pull_request_diff(
         raise ProviderError("invalid GitHub repository identifier")
     if pr_number < 1:
         raise ProviderError("invalid pull-request number")
+    if not github_token:
+        raise ProviderError("GitHub token is required to fetch the pull-request diff")
     reviewed_sha = validate_reviewed_sha(reviewed_sha)
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "ai-engineer-map-claude-review",
     }
-    if github_token:
-        headers["Authorization"] = f"Bearer {github_token}"
+    headers["Authorization"] = f"Bearer {github_token}"
     metadata_request = urllib.request.Request(
         f"https://api.github.com/repos/{repository}/pulls/{pr_number}", headers=headers
     )
