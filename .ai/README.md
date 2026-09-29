@@ -5,9 +5,18 @@ This directory contains task-ready context for AI coding assistants. Repository 
 ## Before a change
 
 - Read `AGENTS.md`, `README.md`, and `CONTRIBUTING.md`.
+- Read `.ai/BRANCHING.md` and `.ai/PHASES.md`; create or reuse a compliant branch.
 - Inspect `git status` and the relevant implementation files.
 - Decide whether the work changes durable behavior, time-sensitive curriculum claims, or both.
 - If claims are current or versioned, collect primary-source evidence first.
+- For multi-step work, copy `.ai/templates/IMPLEMENTATION_PLAN.md` to the ignored `.ai/work/implementation-plan.yaml` and keep its current phase accurate.
+
+## Operating contracts
+
+- [`BRANCHING.md`](BRANCHING.md) defines branch, commit, pull-request, and merge formats.
+- [`PHASES.md`](PHASES.md) defines phase inputs, actions, artifacts, and exit gates.
+- [`config.json`](config.json) exposes the same contracts to tooling.
+- [`../docs/BYO_LLM_AND_GPU.md`](../docs/BYO_LLM_AND_GPU.md) defines safe optional API and GPU execution for hands-on exercises.
 
 ## Task recipes
 

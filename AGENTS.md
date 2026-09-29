@@ -21,12 +21,14 @@ The application deliberately has no JavaScript build step and no runtime depende
 
 ## Required workflow
 
-1. Read `README.md`, `CONTRIBUTING.md`, and the files directly affected by the task.
-2. Preserve unrelated user changes and avoid broad rewrites.
-3. For curriculum claims that may have changed, verify current primary sources before editing.
-4. Update `reviewedAt` only when the affected current claims and references were actually reviewed.
-5. Run `./run.sh check` before handing off changes.
-6. For UI changes, serve with `./run.sh` and inspect desktop and mobile layouts, keyboard focus, and reduced-motion behavior.
+1. Read `README.md`, `CONTRIBUTING.md`, `.ai/BRANCHING.md`, `.ai/PHASES.md`, and the files directly affected by the task.
+2. Work on a correctly named feature branch; never push directly to `main`.
+3. Move through Discover, Specify, Implement, Verify, and Deliver with the evidence required by `.ai/PHASES.md`.
+4. Preserve unrelated user changes and avoid broad rewrites.
+5. For curriculum claims that may have changed, verify current primary sources before editing.
+6. Update `reviewedAt` only when the affected current claims and references were actually reviewed.
+7. Run `./run.sh check` before handing off changes.
+8. For UI changes, serve with `./run.sh` and inspect desktop and mobile layouts, keyboard focus, and reduced-motion behavior.
 
 ## Curriculum contract
 
@@ -41,7 +43,9 @@ Keep the established visual language: near-black shell, warm ivory reading surfa
 ## Safety and quality
 
 - Never place credentials, API keys, personal data, or proprietary prompts in examples or fixtures.
+- Read provider credentials only from environment variables or a local ignored `.env`; never expose them to the browser bundle, logs, commits, or screenshots.
 - Prefer deterministic local exercises; external paid services must be optional and clearly labeled.
+- Do not provision paid API or GPU resources automatically. Show the command, region/GPU choice, persistence behavior, and shutdown or pause step before the learner runs it.
 - Keep authorization, irreversible effects, validation, and policy enforcement outside model-generated decisions.
 - Prefer official specifications, documentation, original papers, and maintained source repositories.
 
@@ -52,4 +56,6 @@ Keep the established visual language: near-black shell, warm ivory reading surfa
 ./run.sh --port 9000      # choose another port
 ./run.sh check            # complete local validation
 ./run.sh lab              # run the retrieval teaching lab
+./run.sh hoe              # check optional BYO provider/GPU configuration
+./run.sh gpu-check        # run the CUDA smoke test on a GPU host
 ```

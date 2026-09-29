@@ -4,5 +4,15 @@ __pycache__/
 .idea/
 .vscode/
 .env
+.env.*
+!.env.example
 .venv/
 coverage/
+.cache/
+.huggingface/
+outputs/
+checkpoints/
+*.safetensors
+*.ckpt
+wandb/
+.ai/work/

@@ -29,6 +29,18 @@ Open <http://127.0.0.1:8000>. The runner validates the project before serving it
 ./run.sh check
 ```
 
+## Optional BYO APIs and GPU labs
+
+The core curriculum remains free and dependency-free. Labs that need a hosted model or accelerator use an explicit bring-your-own configuration:
+
+```bash
+cp .env.example .env
+# Edit .env locally; it is ignored by Git.
+./run.sh hoe --provider openai --gpu jarvislabs
+```
+
+The checker reports only whether required variables and tools exist; it never prints credential values or sends a request. GPU provisioning and billable API calls always remain manual. See [`docs/BYO_LLM_AND_GPU.md`](docs/BYO_LLM_AND_GPU.md) for providers, local OpenAI-compatible endpoints, JarvisLabs execution, storage, and shutdown guidance.
+
 ## AI contributor kit
 
 - [`AGENTS.md`](AGENTS.md) — authoritative repository instructions for coding agents
@@ -36,6 +48,8 @@ Open <http://127.0.0.1:8000>. The runner validates the project before serving it
 - [`GEMINI.md`](GEMINI.md) — Gemini-specific entry point
 - [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — GitHub Copilot context
 - [`.ai/README.md`](.ai/README.md) — task recipes and completion checklist
+- [`.ai/BRANCHING.md`](.ai/BRANCHING.md) — branch, commit, pull-request, and merge rules
+- [`.ai/PHASES.md`](.ai/PHASES.md) — Discover-to-Deliver implementation gates
 
 All tool-specific guidance defers to `AGENTS.md` so repository rules have one source of truth.
 
