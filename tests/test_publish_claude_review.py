@@ -179,6 +179,27 @@ class PublishClaudeReviewTests(unittest.TestCase):
         publisher.ensure_native_round_review(client, 4, sha, body)
         self.assertEqual(len(client.calls), 1)
 
+    def test_native_round_review_failure_fails_closed_and_remains_retryable(self):
+        class Client:
+            def __init__(self):
+                self.post_attempts = 0
+
+            def rest(self, method, _path, _payload=None):
+                if method == "GET":
+                    return []
+                self.post_attempts += 1
+                if self.post_attempts == 1:
+                    raise publisher.PublishError("transient native review failure")
+                return {}
+
+        client = Client()
+        sha = "a" * 40
+        body = f"{publisher.ROUND_MARKER}{sha}:r1 -->\nAPPROVED"
+        with self.assertRaisesRegex(publisher.PublishError, "transient native review failure"):
+            publisher.ensure_native_round_review(client, 4, sha, body)
+        publisher.ensure_native_round_review(client, 4, sha, body)
+        self.assertEqual(client.post_attempts, 2)
+
     def test_thread_inventory_fails_closed_when_graphql_is_truncated(self):
         class Client:
             repository = "owner/repo"

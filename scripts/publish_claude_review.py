@@ -376,11 +376,13 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
 
 
 def ensure_native_round_review(client: GitHub, pr: int, sha: str, body: str) -> None:
-    """Expose each exact-head verdict in GitHub's native Reviews timeline once."""
+    """Expose each exact-head verdict once; API failures propagate and fail the gate."""
     marker = f"{ROUND_MARKER}{sha}:"
     reviews = list_pages(client, f"/pulls/{pr}/reviews")
     if any(marker in (review.get("body") or "") for review in reviews):
         return
+    # Do not catch this mutation: visibility is part of successful publication.
+    # If it fails, no native marker exists, so a rerun retries the POST.
     client.rest(
         "POST",
         f"/pulls/{pr}/reviews",
