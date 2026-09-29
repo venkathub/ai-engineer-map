@@ -32,10 +32,11 @@ class PublishClaudeReviewTests(unittest.TestCase):
                 "patch": "@@ -2,2 +2,3 @@\n old\n+new\n tail",
             }
         ]
-        right, left, anchor = publisher.diff_anchors(files)
+        right, left, anchor, truncated = publisher.diff_anchors(files)
         self.assertIn(3, right["src/app.py"])
         self.assertIn(2, left["src/app.py"])
         self.assertEqual(anchor, {"path": "src/app.py", "line": 3, "side": "RIGHT"})
+        self.assertFalse(truncated)
 
     def test_finding_marker_is_stable_but_sha_scoped(self):
         finding = {"id": "stable-id"}
@@ -68,8 +69,11 @@ class PublishClaudeReviewTests(unittest.TestCase):
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):
-            publisher.diff_anchors([{"filename": "large.txt", "patch": patch}])
+            _right, _left, _anchor, truncated = publisher.diff_anchors(
+                [{"filename": "large.txt", "patch": patch}]
+            )
             message = output.getvalue()
+        self.assertTrue(truncated)
         self.assertIn("50,000-line limit", message)
 
 

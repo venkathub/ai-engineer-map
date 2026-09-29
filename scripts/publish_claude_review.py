@@ -107,7 +107,9 @@ def list_pages(client: GitHub, suffix: str, *, limit: int = 10) -> list[dict[str
     return items
 
 
-def diff_anchors(files: list[dict[str, Any]]) -> tuple[dict[str, set[int]], dict[str, set[int]], dict[str, object] | None]:
+def diff_anchors(
+    files: list[dict[str, Any]],
+) -> tuple[dict[str, set[int]], dict[str, set[int]], dict[str, object] | None, bool]:
     right: dict[str, set[int]] = {}
     left: dict[str, set[int]] = {}
     first: dict[str, object] | None = None
@@ -121,7 +123,7 @@ def diff_anchors(files: list[dict[str, Any]]) -> tuple[dict[str, set[int]], dict
             budget -= 1
             if budget < 0:
                 print("Claude publisher warning: diff-anchor scan reached its 50,000-line limit")
-                return right, left, first
+                return right, left, first, True
             header = re.match(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", text)
             if header:
                 old_line, new_line = map(int, header.groups())
@@ -139,7 +141,7 @@ def diff_anchors(files: list[dict[str, Any]]) -> tuple[dict[str, set[int]], dict
                     left.setdefault(path, set()).add(old_line)
                 old_line += 1
                 new_line += 1
-    return right, left, first
+    return right, left, first, False
 
 
 THREAD_QUERY = """
@@ -350,7 +352,12 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     else:
         client.rest("POST", f"/issues/{args.pr}/comments", {"body": body})
 
-    right, _left, fallback = diff_anchors(files)
+    right, _left, fallback, anchors_truncated = diff_anchors(files)
+    if anchors_truncated:
+        # Exact anchors already observed remain usable. An unanchored finding
+        # must become a general review instead of being attached to an
+        # unrelated early line from a partially scanned diff.
+        fallback = None
     all_threads = threads(client, args.pr)
     pending = marker_thread(all_threads, PENDING_MARKER)
     approved = review["verdict"] == "APPROVED"
@@ -401,7 +408,7 @@ def main() -> int:
     if args.mode == "verify":
         return 0
     files = list_pages(client, f"/pulls/{args.pr}/files", limit=3)
-    _right, _left, fallback = diff_anchors(files)
+    _right, _left, fallback, _anchors_truncated = diff_anchors(files)
     all_threads = threads(client, args.pr)
     if args.mode == "block":
         ensure_pending(client, args.pr, args.sha, all_threads, fallback)

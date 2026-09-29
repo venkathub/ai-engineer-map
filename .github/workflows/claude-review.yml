@@ -92,7 +92,13 @@ jobs:
                 exit 1
                 ;;
             esac
-            sleep 15
+            if [ "$attempt" -le 10 ]; then
+              sleep 10
+            elif [ "$attempt" -le 25 ]; then
+              sleep 20
+            else
+              sleep 30
+            fi
           done
           echo "Timed out waiting for curriculum-and-labs on ${HEAD_SHA}." >&2
           exit 1

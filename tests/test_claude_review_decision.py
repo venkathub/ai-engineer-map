@@ -71,6 +71,20 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
                 str(decision.MAX_FINDINGS + 1),
             )
 
+    def test_accepts_maximum_blocking_finding_count(self):
+        result = decision.select_result(
+            "failure",
+            "skipped",
+            "",
+            "",
+            "",
+            "success",
+            "false",
+            "CHANGES_REQUESTED",
+            str(decision.MAX_FINDINGS),
+        )
+        self.assertEqual(result, (False, "CHANGES_REQUESTED", decision.MAX_FINDINGS))
+
     def test_failure_report_is_written_when_route_report_is_missing(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "review.md"
