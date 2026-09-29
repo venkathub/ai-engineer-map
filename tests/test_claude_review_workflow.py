@@ -27,6 +27,10 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("sort_by(.started_at, .id) | last", analyze)
         self.assertIn("seq 1 35", analyze)
         self.assertIn("Worst-case sleeps total 700 seconds", analyze)
+        self.assertIn("Re-verify head before provider request", analyze)
+        self.assertGreaterEqual(
+            self.workflow.count("publish_claude_review.py --mode verify"), 2
+        )
         self.assertIn('then "missing"', analyze)
         self.assertIn("was not queued", analyze)
         self.assertNotIn("startup_failure|stale", analyze)
@@ -46,6 +50,15 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("echo $CLAUDE_CODE_OAUTH_TOKEN", detection)
         self.assertIn('echo "configured=true"', detection)
         self.assertIn('echo "configured=false"', detection)
+
+    def test_api_fallback_logs_a_non_secret_reason(self):
+        fallback = self.workflow.split("      - name: Review with Anthropic API fallback", 1)[
+            1
+        ].split("      - name: Validate selected review route", 1)[0]
+        self.assertIn("Anthropic API fallback reason", fallback)
+        self.assertIn("OAUTH_CONFIGURED", fallback)
+        self.assertIn("SUBSCRIPTION_OUTCOME", fallback)
+        self.assertNotIn('echo "$ANTHROPIC_API_KEY"', fallback)
 
     def test_required_gate_depends_on_analysis_and_publication(self):
         gate = self.workflow.split("  claude-review:", 1)[1]

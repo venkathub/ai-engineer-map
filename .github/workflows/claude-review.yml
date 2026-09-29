@@ -126,6 +126,15 @@ jobs:
           echo "Timed out waiting for curriculum-and-labs on ${HEAD_SHA}." >&2
           exit 1
 
+      - name: Re-verify head before provider request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >-
+          python3 scripts/publish_claude_review.py --mode verify
+          --pr ${{ github.event.pull_request.number }}
+          --sha ${{ github.event.pull_request.head.sha }}
+
       - name: Detect subscription authentication
         id: oauth
         env:
@@ -190,11 +199,18 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL }}
           GH_TOKEN: ${{ github.token }}
+          OAUTH_CONFIGURED: ${{ steps.oauth.outputs.configured }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
-        run: >-
-          python3 scripts/claude_api_review.py --output claude-review.md
-          --json-output claude-review.json
+          SUBSCRIPTION_OUTCOME: ${{ steps.subscription.outcome }}
+        run: |
+          if [ "$OAUTH_CONFIGURED" != "true" ]; then
+            echo "Anthropic API fallback reason: subscription OAuth is not configured."
+          else
+            echo "Anthropic API fallback reason: subscription action outcome was ${SUBSCRIPTION_OUTCOME}."
+          fi
+          python3 scripts/claude_api_review.py --output claude-review.md \
+            --json-output claude-review.json
 
       - name: Validate selected review route
         id: decision
