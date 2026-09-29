@@ -25,6 +25,8 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("curriculum-and-labs", analyze)
         self.assertIn("commits/${HEAD_SHA}/check-runs", analyze)
         self.assertIn("sort_by(.id) | last", analyze)
+        self.assertIn('then "missing"', analyze)
+        self.assertIn("was not queued", analyze)
 
     def test_oauth_detection_never_prints_the_secret(self):
         detection = self.workflow.split("      - name: Detect subscription authentication", 1)[
@@ -73,6 +75,11 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("issues: write", block)
         self.assertIn("pull-requests: write", block)
         self.assertIn("needs: block", analyze)
+
+    def test_human_hold_removal_is_the_only_label_re_review_trigger(self):
+        self.assertIn("ready_for_review, unlabeled", self.workflow)
+        condition = "github.event.action != 'unlabeled' || github.event.label.name == 'needs-human'"
+        self.assertGreaterEqual(self.workflow.count(condition), 5)
 
     def test_validated_json_crosses_the_job_boundary(self):
         self.assertIn("--json-output claude-review.json", self.workflow)

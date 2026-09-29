@@ -149,14 +149,20 @@ def diff_anchors(
 
 
 THREAD_QUERY = """
-query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){nodes{id isResolved comments(first:100){nodes{databaseId body}}}}}}}
+query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage endCursor} nodes{id isResolved comments(first:100){pageInfo{hasNextPage endCursor} nodes{databaseId body}}}}}}}
 """
 
 
 def threads(client: GitHub, pr: int) -> list[dict[str, Any]]:
     owner, repo = client.repository.split("/", 1)
     data = client.graphql(THREAD_QUERY, {"owner": owner, "repo": repo, "number": pr})
-    return data["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    connection = data["repository"]["pullRequest"]["reviewThreads"]
+    if connection["pageInfo"]["hasNextPage"]:
+        raise PublishError("review thread inventory exceeds the 100-thread safety limit")
+    result = connection["nodes"]
+    if any(thread["comments"]["pageInfo"]["hasNextPage"] for thread in result):
+        raise PublishError("a review thread exceeds the 100-comment safety limit")
+    return result
 
 
 def set_resolved(client: GitHub, thread: dict[str, Any], resolved: bool) -> None:
@@ -299,10 +305,17 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
     if same:
         # Old markers had no explicit round. Preserve their observed round once,
         # then rewrite them to the explicit format on this publication.
-        return same[2] or max(explicit_max, 1), same[0]
-    # Legacy records did not encode N. Counting is used only for one-time
-    # migration; all new records persist N and use explicit_max thereafter.
-    return max(explicit_max, len(records)) + 1, None
+        if same[2]:
+            return same[2], same[0]
+        legacy = sorted(
+            (record for record in records if record[2] is None),
+            key=lambda record: int(record[0].get("id", 0)),
+        )
+        return legacy.index(same) + 1, same[0]
+    # Legacy records receive deterministic ID order only during one-time
+    # migration. Explicit markers remain the sole counter after migration.
+    legacy_count = sum(1 for record in records if record[2] is None)
+    return max(explicit_max, legacy_count) + 1, None
 
 
 def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]]) -> None:

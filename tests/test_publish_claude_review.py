@@ -112,6 +112,53 @@ class PublishClaudeReviewTests(unittest.TestCase):
         ]
         self.assertEqual(publisher.review_round(comments, "d" * 40), (4, None))
 
+    def test_duplicate_explicit_markers_do_not_inflate_next_round(self):
+        comments = [
+            {"id": 2, "body": f"{publisher.ROUND_MARKER}{'b' * 40}:r2 -->"},
+            {"id": 3, "body": f"{publisher.ROUND_MARKER}{'c' * 40}:r3 -->"},
+            {"id": 4, "body": f"{publisher.ROUND_MARKER}{'c' * 40}:r3 -->"},
+        ]
+        self.assertEqual(publisher.review_round(comments, "d" * 40), (4, None))
+
+    def test_legacy_same_sha_uses_deterministic_comment_id_order(self):
+        comments = [
+            {"id": 20, "body": f"{publisher.ROUND_MARKER}{'b' * 40} -->"},
+            {"id": 10, "body": f"{publisher.ROUND_MARKER}{'a' * 40} -->"},
+        ]
+        self.assertEqual(publisher.review_round(comments, "a" * 40)[0], 1)
+        self.assertEqual(publisher.review_round(comments, "b" * 40)[0], 2)
+
+    def test_thread_inventory_fails_closed_when_graphql_is_truncated(self):
+        class Client:
+            repository = "owner/repo"
+
+            def __init__(self, thread_more=False, comment_more=False):
+                self.thread_more = thread_more
+                self.comment_more = comment_more
+
+            def graphql(self, _query, _variables):
+                return {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": self.thread_more},
+                                "nodes": [
+                                    {
+                                        "comments": {
+                                            "pageInfo": {"hasNextPage": self.comment_more},
+                                            "nodes": [],
+                                        }
+                                    }
+                                ],
+                            }
+                        }
+                    }
+                }
+
+        for client in (Client(thread_more=True), Client(comment_more=True)):
+            with self.assertRaises(publisher.PublishError):
+                publisher.threads(client, 4)
+
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):
