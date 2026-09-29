@@ -36,7 +36,7 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
 
     def test_required_gate_depends_on_analysis_and_publication(self):
         gate = self.workflow.split("  claude-review:", 1)[1]
-        self.assertIn("needs: [block, analyze, publish]", gate)
+        self.assertIn("needs: [verify-head, block, analyze, publish]", gate)
         self.assertIn("needs.analyze.outputs.approved", gate)
         self.assertIn("needs.publish.result", gate)
 
@@ -60,8 +60,13 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn('"needs-human"', script)
 
     def test_unreviewed_head_is_blocked_before_analysis(self):
+        verify = self.workflow.split("  verify-head:", 1)[1].split("  block:", 1)[0]
         block = self.workflow.split("  block:", 1)[1].split("  analyze:", 1)[0]
         analyze = self.workflow.split("  analyze:", 1)[1].split("  publish:", 1)[0]
+        self.assertIn("publish_claude_review.py --mode verify", verify)
+        self.assertIn("pull-requests: read", verify)
+        self.assertNotIn("pull-requests: write", verify)
+        self.assertIn("needs: verify-head", block)
         self.assertIn("publish_claude_review.py --mode block", block)
         self.assertIn("issues: write", block)
         self.assertIn("pull-requests: write", block)

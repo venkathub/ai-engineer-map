@@ -18,14 +18,14 @@ Generate the OAuth token from the intended Pro or Max account and paste each cre
 
 The API fallback accepts at most 300,000 bytes of diff text. Split larger changes into smaller pull requests; exceeding the limit produces a fail-closed review-unavailable report instead of an unbounded model request.
 
-The runtime model check is the source of truth: before every fallback review, the script retrieves the configured ID through Anthropic's `/v1/models/{model_id}` endpoint and fails closed unless Anthropic confirms it. The script currently defaults to `claude-sonnet-5`; an Actions variable overrides it only when non-empty.
+The runtime model check is the source of truth: before every fallback review, the script retrieves the configured ID through Anthropic's `/v1/models/{model_id}` endpoint and fails closed unless Anthropic confirms it. The script currently defaults to `claude-sonnet-5`; Anthropic's live endpoint most recently confirmed that exact ID on 2026-09-29 during PR-gate verification. An Actions variable overrides it only when non-empty.
 
 Local credentials may remain in the ignored `.env` for hands-on exercises, but the workflow reads encrypted Actions secrets. Never place either value in workflow YAML, pull-request text, logs, or repository variables. Rotate them according to the provider's policy. Each report identifies whether subscription OAuth or the API fallback produced its verdict without exposing credential details.
 
 ## Review and merge lifecycle
 
 1. Open or update a non-draft pull request.
-2. The pending Claude thread is created or reopened immediately. Claude waits until `curriculum-and-labs` succeeds for that same head SHA; a stale green result never starts review.
+2. A read-only job asks GitHub whether the event SHA is still the PR's current head. Only after that succeeds does the separately write-scoped job create or reopen the pending Claude thread; the publisher repeats the same check as its first API operation before every mutation. Claude then waits until `curriculum-and-labs` succeeds for that same head SHA, so a stale green result never starts review.
 3. Read the persistent audit comment and compact round comment. Each CRITICAL, HIGH, or MEDIUM finding has its own unresolved review thread. LOW findings appear only as non-blocking notes in the round comment.
 4. Address every blocking thread, then reply in that same thread with the fix commit and verification evidence. Do not resolve the thread; it belongs to the Claude reviewer.
 5. Push the fixes. Approval is revoked and the pending thread is reopened before validation or review of the new head begins.

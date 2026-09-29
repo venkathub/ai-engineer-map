@@ -61,6 +61,10 @@ class PublishClaudeReviewTests(unittest.TestCase):
         number, same = publisher.review_round([comment], "a" * 40)
         self.assertEqual((number, same["id"]), (1, 7))
 
+    def test_new_sha_after_legacy_marker_advances_round(self):
+        comment = {"id": 7, "body": f"{publisher.ROUND_MARKER}{'a' * 40} -->"}
+        self.assertEqual(publisher.review_round([comment], "b" * 40), (2, None))
+
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001
         with io.StringIO() as output, redirect_stdout(output):

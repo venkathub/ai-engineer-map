@@ -280,7 +280,9 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
         # Old markers had no explicit round. Preserve their observed round once,
         # then rewrite them to the explicit format on this publication.
         return same[2] or max(explicit_max, 1), same[0]
-    return explicit_max + 1, None
+    # Legacy records did not encode N. Counting is used only for one-time
+    # migration; all new records persist N and use explicit_max thereafter.
+    return max(explicit_max, len(records)) + 1, None
 
 
 def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]]) -> None:
@@ -384,7 +386,7 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("block", "publish"), required=True)
+    parser.add_argument("--mode", choices=("verify", "block", "publish"), required=True)
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--sha", required=True)
     parser.add_argument("--report", type=Path)
@@ -393,7 +395,11 @@ def main() -> int:
     if args.pr < 1 or not SHA_RE.fullmatch(args.sha):
         raise SystemExit("invalid PR number or reviewed SHA")
     client = GitHub(os.environ.get("GITHUB_REPOSITORY", ""), os.environ.get("GH_TOKEN", ""))
+    # SECURITY INVARIANT: exact-head validation is the first API operation and
+    # must remain before every file/thread read and every PR mutation.
     validate_head(client, args.pr, args.sha)
+    if args.mode == "verify":
+        return 0
     files = list_pages(client, f"/pulls/{args.pr}/files", limit=3)
     _right, _left, fallback = diff_anchors(files)
     all_threads = threads(client, args.pr)
