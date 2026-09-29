@@ -72,17 +72,18 @@ Every completed lesson contains:
 
 ### M3 — Learning experience
 
-- Interactive dependency edges
-- Search, track filters, and local progress
-- Detail pages and recommended next concepts
-- Estimated time and difficulty labels
+- [x] Search, track filters, dependency state, and local progress
+- [x] Concept, lesson, and hands-on lab page designs
+- [x] Recommended next concepts, estimated time, and difficulty labels
+- [ ] Visual dependency edges and a11y-tested keyboard graph navigation
 
 ### M4 — Core tracks
 
-- LLM foundations and model APIs
-- Context engineering
-- Agents and MCP
-- Evaluation, safety, and production operations
+- [x] LLM foundations, transformer mechanics, and model APIs
+- [x] Prompt, memory, long-context, and context engineering
+- [x] RAG, agents, MCP 2026-07-28, and A2A v0.3
+- [x] Multimodal, realtime voice, evaluation, observability, and safety
+- [x] PEFT, quantization, serving, distributed inference, and AI operations
 
 ### M5 — Portfolio and community
 

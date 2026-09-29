@@ -5,9 +5,10 @@
 1. Add its metadata to `curriculum/concepts.json`.
 2. Use stable, lowercase kebab-case IDs.
 3. Reference only prerequisite IDs that already exist.
-4. Add a lesson in `content/<track>/<concept-id>.md` before marking it `published`.
-5. Add an exercise or explain why the lesson is conceptual-only.
-6. Run `python3 scripts/validate_curriculum.py` and the unit tests.
+4. Provide at least two observable learning outcomes and a proof-of-understanding exercise.
+5. Add the concept to a track with maintained primary references; add a topic-specific reference when the track sources are not sufficient.
+6. Keep dependency relationships acyclic and update the curriculum review date only after verifying affected claims.
+7. Run `python3 scripts/validate_curriculum.py` and the unit tests.
 
 ## Evidence standard
 

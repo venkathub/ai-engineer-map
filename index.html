@@ -1,91 +1,11 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A connected, hands-on roadmap for production AI engineering." />
-    <title>AI Engineer Map</title>
-    <link rel="stylesheet" href="assets/styles.css" />
-    <script type="module" src="assets/app.js"></script>
-  </head>
-  <body>
-    <header class="site-header">
-      <a class="brand" href="#top" aria-label="AI Engineer Map home">
-        <span class="brand-mark" aria-hidden="true">A<span>I</span></span>
-        <span>AI Engineer Map</span>
-      </a>
-      <nav aria-label="Primary navigation">
-        <a href="#roadmap">Roadmap</a>
-        <a href="#method">Method</a>
-        <a href="https://github.com/venkathub/ai-engineer-map">GitHub ↗</a>
-      </nav>
-    </header>
-
-    <main id="top">
-      <section class="hero">
-        <p class="eyebrow">Open curriculum · concepts → systems</p>
-        <h1>Learn the whole system,<br /><em>then prove you can build it.</em></h1>
-        <p class="hero-copy">
-          A connected map for engineers building reliable AI products. Follow prerequisites, inspect the mechanism,
-          practise the failure path, and ship working artifacts.
-        </p>
-        <div class="hero-actions">
-          <a class="button primary" href="#roadmap">Explore the map</a>
-          <a class="button secondary" href="labs/rag-retrieval/README.md">Start the first lab</a>
-        </div>
-        <dl class="stats" aria-label="Curriculum statistics">
-          <div><dt id="concept-count">—</dt><dd>mapped concepts</dd></div>
-          <div><dt id="published-count">—</dt><dd>published now</dd></div>
-          <div><dt id="minute-count">—</dt><dd>guided minutes</dd></div>
-        </dl>
-      </section>
-
-      <section class="roadmap-section" id="roadmap">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Your learning map</p>
-            <h2>Follow dependencies, not hype.</h2>
-          </div>
-          <p>Choose a track or search for a concept. Select a card to see outcomes, prerequisites, and the exercise.</p>
-        </div>
-
-        <div class="toolbar" aria-label="Roadmap controls">
-          <label class="search-field">
-            <span class="sr-only">Search concepts</span>
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z" /></svg>
-            <input id="search" type="search" placeholder="Search concepts, outcomes, or tracks…" />
-          </label>
-          <div id="track-filters" class="filter-list" aria-label="Filter by track"></div>
-          <label class="completion-filter"><input id="hide-complete" type="checkbox" /> Hide completed</label>
-        </div>
-
-        <div class="map-shell">
-          <div id="roadmap-grid" class="roadmap-grid" aria-live="polite"></div>
-          <aside id="concept-panel" class="concept-panel" aria-live="polite">
-            <p class="panel-kicker">Select a concept</p>
-            <h3>See how the pieces connect.</h3>
-            <p>Each card exposes the mental model, learning outcomes, prerequisites, exercise, and recommended next step.</p>
-          </aside>
-        </div>
-      </section>
-
-      <section class="method-section" id="method">
-        <div>
-          <p class="eyebrow">The learning contract</p>
-          <h2>Every topic ends in evidence.</h2>
-        </div>
-        <ol class="method-list">
-          <li><span>01</span><div><h3>Understand</h3><p>Build a durable mental model from mechanism, constraints, and primary sources.</p></div></li>
-          <li><span>02</span><div><h3>Inspect</h3><p>Observe real tokens, traces, retrieval results, costs, and failure states.</p></div></li>
-          <li><span>03</span><div><h3>Modify</h3><p>Complete a focused implementation and make one trade-off visible.</p></div></li>
-          <li><span>04</span><div><h3>Build</h3><p>Deliver an independently tested artifact that belongs in a portfolio.</p></div></li>
-        </ol>
-      </section>
-    </main>
-
-    <footer>
-      <p>Built in public for deliberate technical practice.</p>
-      <p><a href="PLAN.md">Read the plan</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
-    </footer>
-  </body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="A complete, current, hands-on roadmap for production AI engineering."><title>AI Engineer Map</title><link rel="stylesheet" href="assets/styles.css"><script type="module" src="assets/app.js"></script></head>
+<body data-page="home">
+  <header class="site-header"><a class="brand" href="index.html"><span class="brand-mark">AI</span><span>AI Engineer Map</span></a><button id="menu-button" class="menu-button" aria-expanded="false">Menu</button><nav><a href="roadmap.html">Roadmap</a><a href="concept.html?id=transformers">Concepts</a><a href="lab.html">Labs</a><a href="https://github.com/venkathub/ai-engineer-map">GitHub ↗</a></nav></header>
+  <main>
+    <section class="hero"><div class="hero-grid"><div><p class="overline">Open curriculum · reviewed <span id="review-date">—</span></p><h1>Build AI systems.<br><em>Understand every layer.</em></h1><p class="hero-copy">A connected, source-backed curriculum for engineers who want the whole production stack—from transformers and RAG to agents, safety, inference, evaluation, and operations.</p><div class="hero-actions"><a class="button primary" href="roadmap.html">Explore the roadmap →</a><a class="button ghost" href="lab.html">Open a hands-on lab</a></div></div><div class="hero-orbit" aria-hidden="true"><span>MODELS</span><span>CONTEXT</span><strong>BUILD</strong><span>AGENTS</span><span>EVALS</span></div></div>
+      <dl class="stats"><div><dt id="concept-count">—</dt><dd>connected concepts</dd></div><div><dt id="track-count">—</dt><dd>complete tracks</dd></div><div><dt id="hour-count">—</dt><dd>guided learning</dd></div><div><dt>100%</dt><dd>primary-source linked</dd></div></dl>
+    </section>
+    <section class="home-map"><header><p class="overline dark">The complete field map</p><h2>One path from fundamentals<br>to production ownership.</h2><p>Dependencies replace random tutorials. Every concept ends with evidence: an exercise, an evaluation, or a shipped artifact.</p></header><div id="track-preview" class="track-preview"></div><a class="text-link" href="roadmap.html">View the interactive roadmap →</a></section>
+    <section class="learning-contract"><div><p class="overline dark">Learning contract</p><h2>Read less.<br>Prove more.</h2></div><ol><li><span>01</span><div><b>Understand</b><p>Mechanism, constraints, and primary sources.</p></div></li><li><span>02</span><div><b>Inspect</b><p>Tokens, traces, retrieval, cost, and failure.</p></div></li><li><span>03</span><div><b>Modify</b><p>Change one component and measure the effect.</p></div></li><li><span>04</span><div><b>Build</b><p>Ship a tested portfolio artifact.</p></div></li></ol></section>
+  </main><footer><span>AI Engineer Map · open curriculum</span><span><a href="PLAN.md">Plan</a> · <a href="CONTRIBUTING.md">Contribute</a></span></footer>
+</body></html>

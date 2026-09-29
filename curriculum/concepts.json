@@ -1,165 +1,128 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "reviewedAt": "2026-09-29",
   "tracks": [
-    { "id": "foundations", "title": "Engineering foundations", "phase": "Build the base" },
-    { "id": "models", "title": "Models and inference", "phase": "Understand the engine" },
-    { "id": "context", "title": "Context engineering", "phase": "Control the input" },
-    { "id": "rag", "title": "Retrieval and RAG", "phase": "Ground the answer" },
-    { "id": "agents", "title": "Agents and tools", "phase": "Make systems act" },
-    { "id": "production", "title": "Evaluation and production", "phase": "Earn reliability" }
+    {"id":"foundations","title":"Engineering foundations","phase":"Build the base","color":"#d8ff5f","refs":["python","postgres","docker"]},
+    {"id":"ml","title":"ML & transformer foundations","phase":"Understand the engine","color":"#ff9b84","refs":["pytorch","transformer","hf"]},
+    {"id":"models","title":"Models & inference APIs","phase":"Use models deliberately","color":"#79cfff","refs":["openai","anthropic","hf"]},
+    {"id":"context","title":"Prompt & context engineering","phase":"Control the input","color":"#c7b7ff","refs":["openai","anthropic","owasp"]},
+    {"id":"rag","title":"Retrieval & RAG","phase":"Ground the answer","color":"#69e6bd","refs":["rag","sentence","faiss"]},
+    {"id":"agents","title":"Agents & interoperability","phase":"Make systems act","color":"#ffd166","refs":["mcp","a2a","openai"]},
+    {"id":"multimodal","title":"Multimodal & realtime","phase":"Build beyond text","color":"#ff8fb3","refs":["openai","webrtc"]},
+    {"id":"evals","title":"Evaluation & observability","phase":"Measure behavior","color":"#87b6ff","refs":["otel","mlflow"]},
+    {"id":"safety","title":"Safety, security & governance","phase":"Bound the risk","color":"#ff826d","refs":["owasp","nist","nistgen"]},
+    {"id":"production","title":"Customization & production","phase":"Ship and operate","color":"#b7e36a","refs":["peft","quant","vllm","kubernetes"]}
   ],
+  "references": {
+    "python":{"title":"Python documentation","url":"https://docs.python.org/3/"},
+    "postgres":{"title":"PostgreSQL documentation","url":"https://www.postgresql.org/docs/current/"},
+    "docker":{"title":"Docker documentation","url":"https://docs.docker.com/"},
+    "pytorch":{"title":"PyTorch tutorials","url":"https://docs.pytorch.org/tutorials/"},
+    "transformer":{"title":"Attention Is All You Need","url":"https://arxiv.org/abs/1706.03762"},
+    "hf":{"title":"Hugging Face LLM Course","url":"https://huggingface.co/learn/llm-course/"},
+    "openai":{"title":"OpenAI API documentation","url":"https://platform.openai.com/docs/"},
+    "anthropic":{"title":"Anthropic documentation","url":"https://docs.anthropic.com/"},
+    "rag":{"title":"Retrieval-Augmented Generation paper","url":"https://arxiv.org/abs/2005.11401"},
+    "sentence":{"title":"Sentence Transformers documentation","url":"https://www.sbert.net/"},
+    "faiss":{"title":"FAISS documentation","url":"https://faiss.ai/"},
+    "mcp":{"title":"MCP specification 2026-07-28","url":"https://modelcontextprotocol.io/specification/2026-07-28"},
+    "a2a":{"title":"A2A specification v0.3","url":"https://a2a-protocol.org/v0.3.0/specification/"},
+    "otel":{"title":"OpenTelemetry GenAI semantic conventions","url":"https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/"},
+    "mlflow":{"title":"MLflow documentation","url":"https://mlflow.org/docs/latest/"},
+    "owasp":{"title":"OWASP Top 10 for LLM Applications 2025","url":"https://genai.owasp.org/llm-top-10/"},
+    "nist":{"title":"NIST AI Risk Management Framework","url":"https://www.nist.gov/itl/ai-risk-management-framework"},
+    "nistgen":{"title":"NIST Generative AI Profile","url":"https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"},
+    "peft":{"title":"Transformers PEFT documentation","url":"https://huggingface.co/docs/transformers/peft"},
+    "quant":{"title":"Transformers quantization documentation","url":"https://huggingface.co/docs/transformers/main/quantization/overview"},
+    "vllm":{"title":"vLLM documentation","url":"https://docs.vllm.ai/"},
+    "webrtc":{"title":"WebRTC specification","url":"https://www.w3.org/TR/webrtc/"},
+    "kubernetes":{"title":"Kubernetes documentation","url":"https://kubernetes.io/docs/"}
+  },
   "concepts": [
-    {
-      "id": "api-contracts", "title": "API contracts", "track": "foundations", "order": 1,
-      "level": "foundation", "minutes": 60, "status": "mapped",
-      "summary": "Design typed boundaries for model input, output, errors, and streaming events.",
-      "prerequisites": [],
-      "outcomes": ["Separate provider payloads from application contracts", "Model partial failure and streaming explicitly"],
-      "lesson": null, "exercise": null, "next": ["async-workflows", "model-apis"]
-    },
-    {
-      "id": "async-workflows", "title": "Async workflows", "track": "foundations", "order": 2,
-      "level": "foundation", "minutes": 75, "status": "mapped",
-      "summary": "Coordinate slow, unreliable network work with cancellation, timeouts, and backpressure.",
-      "prerequisites": ["api-contracts"],
-      "outcomes": ["Use concurrency without unbounded fan-out", "Propagate cancellation and timeout budgets"],
-      "lesson": null, "exercise": null, "next": ["reliable-jobs", "model-routing"]
-    },
-    {
-      "id": "reliable-jobs", "title": "Reliable background jobs", "track": "foundations", "order": 3,
-      "level": "intermediate", "minutes": 90, "status": "mapped",
-      "summary": "Make long-running ingestion and generation work retryable, observable, and idempotent.",
-      "prerequisites": ["async-workflows"],
-      "outcomes": ["Design idempotent handlers", "Choose retry and dead-letter policies"],
-      "lesson": null, "exercise": null, "next": ["document-ingestion", "production-observability"]
-    },
-    {
-      "id": "model-apis", "title": "Model APIs and tokens", "track": "models", "order": 1,
-      "level": "foundation", "minutes": 75, "status": "mapped",
-      "summary": "Understand messages, tokens, context limits, sampling, structured output, and streaming.",
-      "prerequisites": ["api-contracts"],
-      "outcomes": ["Estimate context and output cost", "Choose sampling and structured-output settings"],
-      "lesson": null, "exercise": null, "next": ["embeddings", "model-routing", "prompt-design"]
-    },
-    {
-      "id": "embeddings", "title": "Embeddings", "track": "models", "order": 2,
-      "level": "foundation", "minutes": 80, "status": "published",
-      "summary": "Represent meaning as vectors and reason about similarity, dimensions, and model boundaries.",
-      "prerequisites": ["model-apis"],
-      "outcomes": ["Explain what embedding similarity does and does not mean", "Calculate cosine similarity", "Identify embedding-version migration risks"],
-      "lesson": "content/rag/embeddings.md", "exercise": "labs/rag-retrieval/README.md", "next": ["vector-search", "chunking"]
-    },
-    {
-      "id": "model-routing", "title": "Model selection and routing", "track": "models", "order": 3,
-      "level": "intermediate", "minutes": 90, "status": "mapped",
-      "summary": "Route work by measured quality, latency, context, capabilities, and total cost.",
-      "prerequisites": ["model-apis", "async-workflows"],
-      "outcomes": ["Define a task-specific quality threshold", "Implement fallback without hiding failures"],
-      "lesson": null, "exercise": null, "next": ["evaluation-design", "production-observability"]
-    },
-    {
-      "id": "prompt-design", "title": "Prompt and output design", "track": "context", "order": 1,
-      "level": "foundation", "minutes": 75, "status": "mapped",
-      "summary": "Express an instruction, its evidence boundary, and a machine-checkable output contract.",
-      "prerequisites": ["model-apis"],
-      "outcomes": ["Separate instructions from untrusted content", "Prefer constrained schemas over fragile parsing"],
-      "lesson": null, "exercise": null, "next": ["context-assembly", "tool-calling"]
-    },
-    {
-      "id": "context-assembly", "title": "Context assembly", "track": "context", "order": 2,
-      "level": "intermediate", "minutes": 90, "status": "mapped",
-      "summary": "Select, order, label, and compress evidence within a finite context budget.",
-      "prerequisites": ["prompt-design"],
-      "outcomes": ["Allocate a context budget", "Preserve provenance through transformation"],
-      "lesson": null, "exercise": null, "next": ["rag-pipeline", "agent-state"]
-    },
-    {
-      "id": "prompt-injection", "title": "Prompt-injection boundaries", "track": "context", "order": 3,
-      "level": "advanced", "minutes": 100, "status": "mapped",
-      "summary": "Treat retrieved and tool-provided text as untrusted data, not authority.",
-      "prerequisites": ["context-assembly", "tool-calling"],
-      "outcomes": ["Map trust boundaries", "Enforce capabilities outside the model"],
-      "lesson": null, "exercise": null, "next": ["agent-reliability", "production-observability"]
-    },
-    {
-      "id": "document-ingestion", "title": "Document ingestion", "track": "rag", "order": 1,
-      "level": "foundation", "minutes": 90, "status": "mapped",
-      "summary": "Turn source documents into versioned, permission-aware, traceable records.",
-      "prerequisites": ["reliable-jobs"],
-      "outcomes": ["Preserve source identity and permissions", "Make ingestion resumable and idempotent"],
-      "lesson": null, "exercise": null, "next": ["chunking"]
-    },
-    {
-      "id": "chunking", "title": "Chunking", "track": "rag", "order": 2,
-      "level": "foundation", "minutes": 80, "status": "published",
-      "summary": "Split sources into retrievable evidence units without destroying meaning or provenance.",
-      "prerequisites": ["document-ingestion"],
-      "outcomes": ["Compare fixed and structure-aware chunking", "Measure boundary failures", "Retain useful metadata"],
-      "lesson": "content/rag/chunking.md", "exercise": "labs/rag-retrieval/README.md", "next": ["vector-search"]
-    },
-    {
-      "id": "vector-search", "title": "Vector and hybrid search", "track": "rag", "order": 3,
-      "level": "intermediate", "minutes": 110, "status": "published",
-      "summary": "Retrieve evidence by semantic and lexical signals, then combine results transparently.",
-      "prerequisites": ["embeddings", "chunking"],
-      "outcomes": ["Implement vector retrieval", "Explain when keyword search wins", "Fuse ranked result lists"],
-      "lesson": "content/rag/vector-search.md", "exercise": "labs/rag-retrieval/README.md", "next": ["rag-pipeline"]
-    },
-    {
-      "id": "rag-pipeline", "title": "Grounded answer pipeline", "track": "rag", "order": 4,
-      "level": "intermediate", "minutes": 120, "status": "published",
-      "summary": "Assemble retrieved evidence into answers whose claims can be traced to sources.",
-      "prerequisites": ["vector-search", "context-assembly"],
-      "outcomes": ["Separate retrieval from generation failures", "Produce claim-level citations", "Handle insufficient evidence"],
-      "lesson": "content/rag/rag-pipeline.md", "exercise": "labs/rag-retrieval/README.md", "next": ["evaluation-design"]
-    },
-    {
-      "id": "tool-calling", "title": "Tool calling", "track": "agents", "order": 1,
-      "level": "intermediate", "minutes": 90, "status": "mapped",
-      "summary": "Give models narrow, typed capabilities while application code remains in control.",
-      "prerequisites": ["prompt-design", "api-contracts"],
-      "outcomes": ["Design safe tool schemas", "Validate arguments and results outside the model"],
-      "lesson": null, "exercise": null, "next": ["agent-state"]
-    },
-    {
-      "id": "agent-state", "title": "Agent state and workflows", "track": "agents", "order": 2,
-      "level": "intermediate", "minutes": 110, "status": "mapped",
-      "summary": "Model agent execution as explicit, inspectable state transitions rather than a magic loop.",
-      "prerequisites": ["tool-calling", "context-assembly"],
-      "outcomes": ["Choose workflows over autonomy when possible", "Persist resumable execution state"],
-      "lesson": null, "exercise": null, "next": ["agent-reliability"]
-    },
-    {
-      "id": "agent-reliability", "title": "Approval and recovery", "track": "agents", "order": 3,
-      "level": "advanced", "minutes": 120, "status": "mapped",
-      "summary": "Bound agent authority with approvals, budgets, idempotency, and recoverable execution.",
-      "prerequisites": ["agent-state", "prompt-injection"],
-      "outcomes": ["Place approval gates at consequential actions", "Recover safely after partial execution"],
-      "lesson": null, "exercise": null, "next": ["production-observability"]
-    },
-    {
-      "id": "evaluation-design", "title": "Evaluation design", "track": "production", "order": 1,
-      "level": "intermediate", "minutes": 120, "status": "mapped",
-      "summary": "Turn product requirements and observed failures into representative test datasets and metrics.",
-      "prerequisites": ["rag-pipeline"],
-      "outcomes": ["Build a failure-derived evaluation set", "Use deterministic and model-based evaluators appropriately"],
-      "lesson": null, "exercise": null, "next": ["production-observability"]
-    },
-    {
-      "id": "production-observability", "title": "Production observability", "track": "production", "order": 2,
-      "level": "advanced", "minutes": 120, "status": "mapped",
-      "summary": "Trace quality, latency, cost, retrieval, tool calls, and user outcomes across a request.",
-      "prerequisites": ["evaluation-design", "reliable-jobs"],
-      "outcomes": ["Design a useful AI trace", "Detect quality and cost regressions"],
-      "lesson": null, "exercise": null, "next": ["deployment-gates"]
-    },
-    {
-      "id": "deployment-gates", "title": "Deployment and release gates", "track": "production", "order": 3,
-      "level": "advanced", "minutes": 120, "status": "mapped",
-      "summary": "Ship prompts, retrieval changes, tools, and models through versioned tests and gradual rollout.",
-      "prerequisites": ["production-observability"],
-      "outcomes": ["Version every behavior-changing artifact", "Define rollback and release-quality gates"],
-      "lesson": null, "exercise": null, "next": []
-    }
+    {"id":"python-ai","title":"Python for AI systems","track":"foundations","order":1,"level":"foundation","minutes":75,"summary":"Typing, environments, iterators, data transforms, and testable service code.","prerequisites":[],"outcomes":["Model typed boundaries","Write deterministic transforms"],"exercise":"Build a typed batch processor."},
+    {"id":"api-contracts","title":"APIs, schemas & contracts","track":"foundations","order":2,"level":"foundation","minutes":75,"summary":"Provider-neutral input, output, error, and streaming event contracts.","prerequisites":["python-ai"],"outcomes":["Validate external data","Separate provider and product contracts"],"exercise":"Design and validate a model-response schema."},
+    {"id":"async-workflows","title":"Async, concurrency & backpressure","track":"foundations","order":3,"level":"intermediate","minutes":90,"summary":"Cancellation, timeout budgets, bounded concurrency, and flow control.","prerequisites":["api-contracts"],"outcomes":["Avoid unbounded fan-out","Propagate cancellation"],"exercise":"Implement a bounded request pool."},
+    {"id":"sql-data","title":"SQL, data modeling & lineage","track":"foundations","order":4,"level":"foundation","minutes":75,"summary":"Durable models for sources, conversations, versions, permissions, and lineage.","prerequisites":["api-contracts"],"outcomes":["Design traceable records","Query run and cost data"],"exercise":"Model sources, chunks, runs, and feedback."},
+    {"id":"testing-git","title":"Testing, Git & reproducibility","track":"foundations","order":5,"level":"foundation","minutes":75,"summary":"Fixtures, unit and integration tests, reviews, and pinned artifacts.","prerequisites":["python-ai"],"outcomes":["Build stable fixtures","Version behavioral assets"],"exercise":"Add a regression test around a model boundary."},
+    {"id":"jobs-queues","title":"Queues, retries & idempotency","track":"foundations","order":6,"level":"intermediate","minutes":90,"summary":"Recoverable long-running work with deduplication, leases, retries, and dead letters.","prerequisites":["async-workflows","sql-data"],"outcomes":["Design idempotency keys","Choose retry policy"],"exercise":"Model a resumable ingestion job."},
+    {"id":"containers-cloud","title":"Containers, cloud & networking","track":"foundations","order":7,"level":"intermediate","minutes":90,"summary":"Packaging, DNS, TLS, secrets, storage, health, and resource limits.","prerequisites":["testing-git"],"outcomes":["Build a minimal container","Separate readiness and liveness"],"exercise":"Containerize an API with health checks."},
+
+    {"id":"math-ml","title":"Math for machine learning","track":"ml","order":1,"level":"foundation","minutes":120,"summary":"Vectors, matrices, probability, gradients, likelihood, and optimization intuition.","prerequisites":["python-ai"],"outcomes":["Interpret similarity","Explain gradient learning"],"exercise":"Visualize gradient descent and cosine similarity."},
+    {"id":"classical-ml","title":"Classical ML & validation","track":"ml","order":2,"level":"foundation","minutes":105,"summary":"Supervised, unsupervised, and ranking baselines with valid splits and leakage control.","prerequisites":["math-ml"],"outcomes":["Choose a baseline","Detect leakage"],"exercise":"Train and evaluate a text classifier."},
+    {"id":"neural-networks","title":"Neural networks & representations","track":"ml","order":3,"level":"foundation","minutes":120,"summary":"Layers, activations, loss, backpropagation, regularization, and learned features.","prerequisites":["math-ml"],"outcomes":["Trace forward and backward passes","Diagnose overfit"],"exercise":"Train a small network and inspect gradients."},
+    {"id":"tokenization","title":"Tokenization & vocabularies","track":"ml","order":4,"level":"foundation","minutes":75,"summary":"Subword tokens, special tokens, sequence length, multilingual trade-offs, and budgets.","prerequisites":["neural-networks"],"outcomes":["Inspect boundaries","Estimate token cost"],"exercise":"Compare tokenizers on code and multilingual text."},
+    {"id":"transformers","title":"Attention & transformers","track":"ml","order":5,"level":"intermediate","minutes":150,"summary":"Self-attention, positions, residuals, normalization, feed-forwards, and causal masking.","prerequisites":["neural-networks","tokenization"],"outcomes":["Explain attention","Trace a transformer block"],"exercise":"Implement a tiny attention layer."},
+    {"id":"pretraining-alignment","title":"Pretraining, post-training & alignment","track":"ml","order":6,"level":"intermediate","minutes":105,"summary":"Next-token training, instruction tuning, preference optimization, and alignment trade-offs.","prerequisites":["transformers"],"outcomes":["Map training stages to behavior","Recognize reward trade-offs"],"exercise":"Classify examples by training stage."},
+    {"id":"embeddings","title":"Embeddings & representation spaces","track":"ml","order":7,"level":"foundation","minutes":90,"summary":"Vector meaning, similarity, dimensions, normalization, drift, and migrations.","prerequisites":["math-ml","transformers"],"outcomes":["Calculate cosine similarity","Plan embedding migrations"],"exercise":"Build an inspectable vector-search baseline."},
+    {"id":"generation-decoding","title":"Generation & decoding","track":"ml","order":8,"level":"intermediate","minutes":90,"summary":"Logits, temperature, top-p, stops, repetition, constraints, and uncertainty.","prerequisites":["transformers"],"outcomes":["Choose decoding controls","Separate temperature from confidence"],"exercise":"Compare decoding settings on fixed prompts."},
+
+    {"id":"model-apis","title":"Model APIs & streaming","track":"models","order":1,"level":"foundation","minutes":90,"summary":"Messages, streaming events, errors, retries, and usage accounting.","prerequisites":["api-contracts","tokenization"],"outcomes":["Implement streaming","Normalize provider errors"],"exercise":"Build a provider-neutral streaming adapter."},
+    {"id":"structured-output","title":"Structured outputs & validation","track":"models","order":2,"level":"foundation","minutes":75,"summary":"Schema-constrained output, semantic validation, repair limits, and visible failure.","prerequisites":["model-apis"],"outcomes":["Constrain generation","Reject invalid output"],"exercise":"Extract typed records with validation."},
+    {"id":"open-models","title":"Open models & artifacts","track":"models","order":3,"level":"intermediate","minutes":90,"summary":"Architectures, weights, tokenizers, licenses, model cards, and provenance.","prerequisites":["transformers"],"outcomes":["Audit a model card","Match artifact versions"],"exercise":"Review an open model for license and runtime fit."},
+    {"id":"model-selection","title":"Model selection, routing & fallback","track":"models","order":4,"level":"intermediate","minutes":105,"summary":"Routing by measured quality, latency, context, modality, availability, and cost.","prerequisites":["model-apis","structured-output"],"outcomes":["Define task thresholds","Build observable fallback"],"exercise":"Create an eval-backed routing policy."},
+    {"id":"long-context","title":"Long context & cache economics","track":"models","order":5,"level":"intermediate","minutes":90,"summary":"Long windows, lost-in-the-middle effects, latency, retrieval trade-offs, and caching.","prerequisites":["model-apis","embeddings"],"outcomes":["Budget context","Choose retrieval or full input"],"exercise":"Benchmark context placement and length."},
+    {"id":"batch-async-api","title":"Batch & asynchronous APIs","track":"models","order":6,"level":"intermediate","minutes":75,"summary":"Execution modes for latency, cost, reliability, reconciliation, and large workloads.","prerequisites":["jobs-queues","model-apis"],"outcomes":["Select execution mode","Reconcile results safely"],"exercise":"Design a resumable batch pipeline."},
+
+    {"id":"instruction-design","title":"Instruction hierarchy & prompt design","track":"context","order":1,"level":"foundation","minutes":90,"summary":"Goals, authority, constraints, evidence, examples, and output contracts.","prerequisites":["model-apis"],"outcomes":["Separate authority from data","Write testable instructions"],"exercise":"Rewrite a brittle prompt as a contract."},
+    {"id":"few-shot","title":"Examples & few-shot learning","track":"context","order":2,"level":"foundation","minutes":75,"summary":"Representative demonstrations, formatting, leakage prevention, and sensitivity testing.","prerequisites":["instruction-design"],"outcomes":["Select examples","Detect induced bias"],"exercise":"Run an example-ablation evaluation."},
+    {"id":"context-assembly","title":"Context assembly & compression","track":"context","order":3,"level":"intermediate","minutes":105,"summary":"Selection, ordering, labeling, summarization, compression, and provenance under a budget.","prerequisites":["instruction-design","long-context"],"outcomes":["Allocate a budget","Preserve provenance"],"exercise":"Implement a budget-aware context packer."},
+    {"id":"conversation-state","title":"Conversation state & memory","track":"context","order":4,"level":"intermediate","minutes":90,"summary":"Transcript, product state, user memory, summaries, facts, scope, and lifecycle.","prerequisites":["context-assembly","sql-data"],"outcomes":["Choose what to persist","Prevent cross-user memory"],"exercise":"Design scoped memory with expiry."},
+    {"id":"prompt-caching","title":"Prompt caching & reusable prefixes","track":"context","order":5,"level":"intermediate","minutes":75,"summary":"Stable prefixes, variable suffixes, hit rates, latency, cost, and invalidation.","prerequisites":["context-assembly"],"outcomes":["Design cache-friendly prompts","Avoid stale prefixes"],"exercise":"Measure cache behavior under changes."},
+    {"id":"context-security","title":"Context trust boundaries","track":"context","order":6,"level":"advanced","minutes":105,"summary":"Untrusted content labeling, instruction isolation, secret minimization, and capability enforcement.","prerequisites":["instruction-design","context-assembly"],"outcomes":["Map trust levels","Keep data from becoming authority"],"exercise":"Threat-model context assembly."},
+
+    {"id":"document-ingestion","title":"Ingestion, parsing & OCR","track":"rag","order":1,"level":"foundation","minutes":105,"summary":"Versioned, permission-aware, traceable source extraction from files, pages, images, and records.","prerequisites":["jobs-queues","sql-data"],"outcomes":["Preserve identity","Handle parsing failure"],"exercise":"Create a resumable ingestion manifest."},
+    {"id":"chunking","title":"Chunking & metadata","track":"rag","order":2,"level":"foundation","minutes":90,"summary":"Evidence units that preserve structure, meaning, metadata, and provenance.","prerequisites":["document-ingestion"],"outcomes":["Compare strategies","Measure boundary failures"],"exercise":"Evaluate three chunking policies."},
+    {"id":"vector-indexes","title":"Vector indexes & ANN search","track":"rag","order":3,"level":"intermediate","minutes":105,"summary":"Exact and approximate nearest neighbors, filters, index trade-offs, and recall.","prerequisites":["embeddings","chunking"],"outcomes":["Choose an index","Measure recall"],"exercise":"Benchmark exact and approximate search."},
+    {"id":"hybrid-search","title":"Lexical, vector & hybrid retrieval","track":"rag","order":4,"level":"intermediate","minutes":105,"summary":"Keyword precision, semantic recall, filters, and rank fusion.","prerequisites":["vector-indexes"],"outcomes":["Know when lexical wins","Fuse ranked lists"],"exercise":"Implement reciprocal-rank fusion."},
+    {"id":"query-transform","title":"Query rewriting, routing & decomposition","track":"rag","order":5,"level":"intermediate","minutes":90,"summary":"Searchable queries, source routing, decomposition, and drift control.","prerequisites":["hybrid-search","instruction-design"],"outcomes":["Route by source","Detect rewrite drift"],"exercise":"Evaluate multi-query retrieval."},
+    {"id":"reranking","title":"Reranking & diversity","track":"rag","order":6,"level":"intermediate","minutes":90,"summary":"Cross-encoders, model rerankers, deduplication, and diverse evidence.","prerequisites":["hybrid-search"],"outcomes":["Measure reranker lift","Control redundancy"],"exercise":"Compare nDCG before and after reranking."},
+    {"id":"grounded-generation","title":"Grounded answers & citations","track":"rag","order":7,"level":"intermediate","minutes":120,"summary":"Traceable claims, source citations, evidence boundaries, and abstention.","prerequisites":["reranking","context-assembly"],"outcomes":["Build claim citations","Localize failures"],"exercise":"Build a cited answer pipeline."},
+    {"id":"structured-retrieval","title":"Graph, SQL & structured retrieval","track":"rag","order":8,"level":"advanced","minutes":105,"summary":"Routing across vectors, knowledge graphs, SQL, metadata filters, and APIs.","prerequisites":["query-transform","sql-data"],"outcomes":["Choose a substrate","Validate generated queries"],"exercise":"Build read-only text-to-SQL retrieval."},
+    {"id":"rag-quality","title":"RAG quality, freshness & permissions","track":"rag","order":9,"level":"advanced","minutes":120,"summary":"Retrieval and answer metrics plus deletion, versioning, tenancy, and authorization.","prerequisites":["grounded-generation","structured-retrieval"],"outcomes":["Build gold sets","Test authorization before ranking"],"exercise":"Add recall, citation, freshness, and permission tests."},
+
+    {"id":"tool-calling","title":"Tool calling & capabilities","track":"agents","order":1,"level":"intermediate","minutes":105,"summary":"Narrow typed capabilities with deterministic application control and validation.","prerequisites":["structured-output","context-security"],"outcomes":["Design safe schemas","Validate arguments and results"],"exercise":"Implement typed tools with policy checks."},
+    {"id":"workflow-agents","title":"Workflows vs autonomous agents","track":"agents","order":2,"level":"intermediate","minutes":90,"summary":"Choose orchestration or autonomy according to task uncertainty and risk.","prerequisites":["tool-calling"],"outcomes":["Choose least autonomy","Expose state transitions"],"exercise":"Turn an opaque loop into a workflow."},
+    {"id":"planning-reflection","title":"Planning, search & reflection","track":"agents","order":3,"level":"advanced","minutes":105,"summary":"Decomposition, critique, search, budgets, and measurable stopping conditions.","prerequisites":["workflow-agents"],"outcomes":["Bound planning loops","Detect critique failure"],"exercise":"Compare direct and plan-then-act strategies."},
+    {"id":"agent-state","title":"State, memory & durable execution","track":"agents","order":4,"level":"advanced","minutes":120,"summary":"Resumable state, checkpoints, leases, tool effects, and recovery.","prerequisites":["workflow-agents","jobs-queues","conversation-state"],"outcomes":["Resume safely","Avoid duplicate effects"],"exercise":"Build a checkpointed agent state machine."},
+    {"id":"human-loop","title":"Human approval & escalation","track":"agents","order":5,"level":"advanced","minutes":90,"summary":"Meaningful review, takeover, and escalation at consequential boundaries.","prerequisites":["agent-state"],"outcomes":["Design informed approvals","Preserve escalation context"],"exercise":"Add risk-based approval gates."},
+    {"id":"mcp","title":"Model Context Protocol (MCP)","track":"agents","order":6,"level":"intermediate","minutes":120,"summary":"The 2026-07-28 core, hosts, clients, servers, tools, resources, authorization, and extensions.","prerequisites":["tool-calling","api-contracts"],"outcomes":["Explain MCP roles","Design stateless authorized integrations"],"exercise":"Specify an MCP server with tools and resources."},
+    {"id":"a2a","title":"Agent-to-Agent protocol (A2A)","track":"agents","order":7,"level":"advanced","minutes":90,"summary":"Capability discovery, modality negotiation, task lifecycle, and secure agent exchange in v0.3.","prerequisites":["mcp","agent-state"],"outcomes":["Distinguish A2A from MCP","Model cross-agent tasks"],"exercise":"Design two A2A-collaborating agents."},
+    {"id":"multi-agent","title":"Multi-agent coordination","track":"agents","order":8,"level":"advanced","minutes":120,"summary":"Delegation, specialization, shared artifacts, conflict handling, and coordination overhead.","prerequisites":["a2a","planning-reflection"],"outcomes":["Choose a topology","Measure coordination cost"],"exercise":"Compare one agent with delegated execution."},
+    {"id":"computer-use","title":"Browser, computer & code-use agents","track":"agents","order":9,"level":"advanced","minutes":120,"summary":"Sandboxed browser, terminal, UI, and code execution with observation and confirmation.","prerequisites":["human-loop","context-security"],"outcomes":["Sandbox execution","Guard irreversible actions"],"exercise":"Threat-model a browser task runner."},
+
+    {"id":"vision-models","title":"Vision-language models","track":"multimodal","order":1,"level":"intermediate","minutes":105,"summary":"Images, screenshots, documents, spatial relations, crops, and visual uncertainty.","prerequisites":["model-apis","transformers"],"outcomes":["Design visual inputs","Evaluate grounding"],"exercise":"Build a screenshot extraction benchmark."},
+    {"id":"speech-audio","title":"Speech, audio, STT & TTS","track":"multimodal","order":2,"level":"intermediate","minutes":105,"summary":"Transcription, diarization, synthesis, timestamps, chunks, consent, and quality.","prerequisites":["model-apis"],"outcomes":["Handle audio streams","Evaluate transcription"],"exercise":"Create a timestamped speech pipeline."},
+    {"id":"realtime-voice","title":"Realtime voice agents","track":"multimodal","order":3,"level":"advanced","minutes":120,"summary":"Low-latency duplex voice, turn detection, interruption, streaming tools, and fallback.","prerequisites":["speech-audio","tool-calling","async-workflows"],"outcomes":["Budget latency","Handle barge-in"],"exercise":"Design a WebRTC voice-agent loop."},
+    {"id":"image-generation","title":"Image generation & editing","track":"multimodal","order":4,"level":"intermediate","minutes":90,"summary":"Composition, references, masks, iteration, provenance, fidelity, and safety.","prerequisites":["vision-models","instruction-design"],"outcomes":["Write image briefs","Evaluate fidelity"],"exercise":"Create a reproducible variant workflow."},
+    {"id":"video-generation","title":"Video generation & temporal media","track":"multimodal","order":5,"level":"advanced","minutes":90,"summary":"Shots, temporal consistency, audio, editing, provenance, cost, and async jobs.","prerequisites":["image-generation","jobs-queues"],"outcomes":["Specify temporal constraints","Design async generation"],"exercise":"Storyboard and evaluate a sequence."},
+    {"id":"multimodal-rag","title":"Multimodal retrieval & document AI","track":"multimodal","order":6,"level":"advanced","minutes":120,"summary":"Retrieval over text, layout, images, tables, and audio with region provenance.","prerequisites":["vision-models","rag-quality"],"outcomes":["Choose modality indexes","Cite regions and timestamps"],"exercise":"Design retrieval over visual documents."},
+
+    {"id":"eval-contracts","title":"Evaluation contracts & datasets","track":"evals","order":1,"level":"intermediate","minutes":120,"summary":"Requirements and failures converted into representative cases, rubrics, slices, and thresholds.","prerequisites":["testing-git","model-selection"],"outcomes":["Build failure-derived sets","Prevent leakage"],"exercise":"Create a versioned 30-case suite."},
+    {"id":"deterministic-evals","title":"Deterministic & model-based evaluators","track":"evals","order":2,"level":"intermediate","minutes":105,"summary":"Exact checks, schemas, code graders, semantic measures, and calibrated LLM judges.","prerequisites":["eval-contracts","structured-output"],"outcomes":["Choose valid evaluators","Calibrate judges"],"exercise":"Compare three evaluator types."},
+    {"id":"human-pairwise","title":"Human, pairwise & preference evaluation","track":"evals","order":3,"level":"advanced","minutes":90,"summary":"Blind comparison, annotation guidance, disagreement, agreement, and preference data.","prerequisites":["deterministic-evals"],"outcomes":["Write reliable rubrics","Measure agreement"],"exercise":"Run a blinded pairwise review."},
+    {"id":"rag-evals","title":"Retrieval & RAG evaluation","track":"evals","order":4,"level":"advanced","minutes":120,"summary":"Recall, ranking, context precision, faithfulness, citations, completeness, and abstention.","prerequisites":["rag-quality","eval-contracts"],"outcomes":["Localize pipeline failure","Build gold sets"],"exercise":"Create a RAG scorecard."},
+    {"id":"agent-evals","title":"Agent trajectory & tool evaluation","track":"evals","order":5,"level":"advanced","minutes":120,"summary":"Outcomes, tool choices, arguments, policy, efficiency, side effects, and recovery.","prerequisites":["agent-state","eval-contracts"],"outcomes":["Grade trajectories","Test adversarial tool states"],"exercise":"Build a simulated tool harness."},
+    {"id":"tracing-observability","title":"Tracing & GenAI observability","track":"evals","order":6,"level":"advanced","minutes":105,"summary":"Models, retrieval, tools, tokens, latency, cost, errors, and outcomes in safe traces.","prerequisites":["async-workflows","deterministic-evals"],"outcomes":["Design AI traces","Protect sensitive telemetry"],"exercise":"Define OTel spans for a RAG-agent request."},
+    {"id":"online-evals","title":"Online evaluation & feedback loops","track":"evals","order":7,"level":"advanced","minutes":105,"summary":"Sampled evaluation, feedback, anomaly detection, experiments, and drift monitoring.","prerequisites":["tracing-observability","human-pairwise"],"outcomes":["Link feedback to traces","Detect drift"],"exercise":"Design a privacy-aware feedback pipeline."},
+
+    {"id":"threat-modeling","title":"AI threat modeling","track":"safety","order":1,"level":"intermediate","minutes":105,"summary":"Assets, actors, trust boundaries, flows, capabilities, abuse cases, and controls.","prerequisites":["api-contracts","context-security"],"outcomes":["Create a threat model","Prioritize controls"],"exercise":"Threat-model a tool-using RAG app."},
+    {"id":"prompt-injection","title":"Prompt & indirect injection","track":"safety","order":2,"level":"advanced","minutes":120,"summary":"Adversarial model-visible content, authority separation, and defense in depth.","prerequisites":["threat-modeling","tool-calling"],"outcomes":["Test injection","Enforce capabilities outside models"],"exercise":"Build an adversarial injection suite."},
+    {"id":"output-safety","title":"Output validation & unsafe rendering","track":"safety","order":3,"level":"advanced","minutes":90,"summary":"Control model output before code, SQL, HTML, shell, UI, or downstream use.","prerequisites":["structured-output","threat-modeling"],"outcomes":["Constrain dangerous sinks","Isolate rendering"],"exercise":"Secure model-to-HTML and SQL paths."},
+    {"id":"least-privilege","title":"Least privilege & excessive agency","track":"safety","order":4,"level":"advanced","minutes":105,"summary":"Minimal tools, credentials, resources, transaction sizes, frequency, and autonomy.","prerequisites":["human-loop","threat-modeling"],"outcomes":["Scope capabilities","Gate consequences"],"exercise":"Reduce an agent permission set."},
+    {"id":"privacy-data","title":"Privacy, PII & data lifecycle","track":"safety","order":5,"level":"advanced","minutes":105,"summary":"Collection, purpose, consent, retention, deletion, residency, logging, and disclosure.","prerequisites":["sql-data","threat-modeling"],"outcomes":["Map sensitive flows","Implement deletion"],"exercise":"Write and test a data-lifecycle policy."},
+    {"id":"supply-chain","title":"AI supply-chain security","track":"safety","order":6,"level":"advanced","minutes":105,"summary":"Provenance for models, data, packages, prompts, tools, plugins, and deployments.","prerequisites":["open-models","testing-git"],"outcomes":["Inventory artifacts","Verify provenance"],"exercise":"Create an AI bill of materials."},
+    {"id":"poisoning-redteam","title":"Poisoning, red teaming & abuse tests","track":"safety","order":7,"level":"advanced","minutes":120,"summary":"Poisoning, retrieval manipulation, jailbreaks, misuse, denial of wallet, and hostile tools.","prerequisites":["prompt-injection","rag-evals"],"outcomes":["Build abuse suites","Retest mitigations"],"exercise":"Run a scoped red-team."},
+    {"id":"governance-incidents","title":"Governance, risk & incident response","track":"safety","order":8,"level":"advanced","minutes":120,"summary":"Accountability, risk registers, monitoring, triage, containment, recovery, and learning.","prerequisites":["privacy-data","poisoning-redteam","online-evals"],"outcomes":["Map NIST AI RMF controls","Run a tabletop"],"exercise":"Create a risk register and incident playbook."},
+
+    {"id":"data-curation-sft","title":"Data curation & supervised fine-tuning","track":"production","order":1,"level":"advanced","minutes":135,"summary":"Customization targets, examples, splits, training, leakage, and regression control.","prerequisites":["pretraining-alignment","eval-contracts"],"outcomes":["Decide if SFT fits","Build valid datasets"],"exercise":"Design an SFT dataset and eval plan."},
+    {"id":"peft","title":"PEFT, LoRA & QLoRA","track":"production","order":2,"level":"advanced","minutes":120,"summary":"Low-rank adapters, quantized training, merging, hotswapping, memory, and quality.","prerequisites":["data-curation-sft"],"outcomes":["Configure LoRA","Explain QLoRA trade-offs"],"exercise":"Train and compare a small adapter."},
+    {"id":"preference-distill","title":"Preference optimization & distillation","track":"production","order":3,"level":"advanced","minutes":120,"summary":"Preference data, teacher outputs, alignment objectives, compression, and evaluation.","prerequisites":["data-curation-sft","human-pairwise"],"outcomes":["Choose an objective","Evaluate distilled behavior"],"exercise":"Design a preference or distillation experiment."},
+    {"id":"quantization","title":"Quantization & model compression","track":"production","order":4,"level":"advanced","minutes":105,"summary":"Precision, memory, throughput, hardware, weight and activation formats, and quality.","prerequisites":["open-models","generation-decoding"],"outcomes":["Choose quantization","Benchmark quality and speed"],"exercise":"Compare quantized variants."},
+    {"id":"model-serving","title":"Model serving runtimes","track":"production","order":5,"level":"advanced","minutes":120,"summary":"Continuous batching, KV caches, scheduling, structured decoding, and compatible APIs.","prerequisites":["quantization","containers-cloud"],"outcomes":["Configure serving","Measure prefill and decode"],"exercise":"Benchmark a serving endpoint."},
+    {"id":"distributed-inference","title":"Distributed inference & capacity","track":"production","order":6,"level":"advanced","minutes":120,"summary":"Tensor, pipeline, data, and expert parallelism plus memory, bandwidth, and failover.","prerequisites":["model-serving"],"outcomes":["Estimate capacity","Choose parallelism"],"exercise":"Create a capacity model for an SLO."},
+    {"id":"cost-reliability","title":"Cost, latency & reliability engineering","track":"production","order":7,"level":"advanced","minutes":120,"summary":"Token economics, caches, load shedding, tenant limits, selective retries, and fallback.","prerequisites":["model-selection","tracing-observability","model-serving"],"outcomes":["Model unit economics","Define SLOs"],"exercise":"Design graceful degradation."},
+    {"id":"deployment-cicd","title":"AI CI/CD, deployment & release gates","track":"production","order":8,"level":"advanced","minutes":120,"summary":"Versioned prompts, models, data, indexes, tools, and policies with canaries and rollback.","prerequisites":["online-evals","cost-reliability","governance-incidents"],"outcomes":["Define release gates","Roll back coupled artifacts"],"exercise":"Create a staged release pipeline."},
+    {"id":"product-ux","title":"AI product UX & trust","track":"production","order":9,"level":"intermediate","minutes":105,"summary":"Streaming, uncertainty, citations, editing, feedback, consent, recovery, and boundaries.","prerequisites":["grounded-generation","human-loop","online-evals"],"outcomes":["Communicate uncertainty","Design recovery"],"exercise":"Prototype a failure-aware interaction."},
+    {"id":"capstone","title":"Production AI system capstone","track":"production","order":10,"level":"advanced","minutes":600,"summary":"A secure, evaluated, observable AI product with retrieval or tools and deployment evidence.","prerequisites":["deployment-cicd","product-ux","rag-quality","agent-evals"],"outcomes":["Integrate the lifecycle","Defend trade-offs with evidence"],"exercise":"Build, deploy, document, and review the system."}
   ]
 }
