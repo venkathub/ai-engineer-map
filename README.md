@@ -16,18 +16,27 @@ An open, source-backed learning environment for production AI engineering. The 2
 ## Run locally
 
 ```bash
-python3 -m http.server 8000
+./run.sh
 ```
 
-Open <http://localhost:8000>. The site is browser-native and does not require a package install or build step.
+Open <http://127.0.0.1:8000>. The runner validates the project before serving it. Use `./run.sh --port 9000`, `./run.sh --no-check`, or `./run.sh help` for other modes. The site is browser-native and does not require a package install or build step.
 
 ## Run the first lab
 
 ```bash
-python3 labs/rag-retrieval/exercise.py
-python3 -m unittest discover -s tests -v
-python3 scripts/validate_curriculum.py
+./run.sh lab
+./run.sh check
 ```
+
+## AI contributor kit
+
+- [`AGENTS.md`](AGENTS.md) — authoritative repository instructions for coding agents
+- [`CLAUDE.md`](CLAUDE.md) — Claude-specific entry point
+- [`GEMINI.md`](GEMINI.md) — Gemini-specific entry point
+- [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — GitHub Copilot context
+- [`.ai/README.md`](.ai/README.md) — task recipes and completion checklist
+
+All tool-specific guidance defers to `AGENTS.md` so repository rules have one source of truth.
 
 ## Learning philosophy
 
