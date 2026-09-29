@@ -25,8 +25,9 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
-      # permission-* inputs narrow the App installation token; they are
-      # independent of this job's permissions block for GITHUB_TOKEN.
+      # The permission-* inputs below narrow the generated App installation
+      # token and are independent of the GITHUB_TOKEN permissions declared in
+      # this job's permissions: block.
       - name: Create Claude Review bot token
         id: review-app
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -249,8 +250,9 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
-      # permission-* inputs narrow the App installation token; they are
-      # independent of this job's permissions block for GITHUB_TOKEN.
+      # The permission-* inputs below narrow the generated App installation
+      # token and are independent of the GITHUB_TOKEN permissions declared in
+      # this job's permissions: block.
       - name: Create Claude Review bot token
         id: review-app
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
