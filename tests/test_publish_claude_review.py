@@ -45,6 +45,22 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertNotEqual(first, publisher.finding_marker(finding, "b" * 40))
         self.assertNotIn("stable-id", first)
 
+    def test_path_specific_finding_never_uses_unrelated_fallback(self):
+        fallback = {"path": "other.py", "line": 1, "side": "RIGHT"}
+        finding = {"path": "target.py", "line": 99}
+        with io.StringIO() as output, redirect_stdout(output):
+            anchor = publisher.finding_anchor(finding, {"target.py": {2, 3}}, fallback)
+            warning = output.getvalue()
+        self.assertIsNone(anchor)
+        self.assertIn("no exact inline anchor", warning)
+
+    def test_exact_finding_anchor_is_preserved(self):
+        finding = {"path": "target.py", "line": 3}
+        self.assertEqual(
+            publisher.finding_anchor(finding, {"target.py": {2, 3}}, None),
+            {"path": "target.py", "line": 3, "side": "RIGHT"},
+        )
+
     def test_blocking_severities_match_kaasu_policy(self):
         self.assertEqual(publisher.BLOCKING, {"critical", "high", "medium"})
 

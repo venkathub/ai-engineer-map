@@ -269,6 +269,19 @@ def finding_body(finding: dict[str, Any], sha: str, round_number: int) -> str:
     )
 
 
+def finding_anchor(
+    finding: dict[str, Any], right: dict[str, set[int]], fallback: dict[str, object] | None
+) -> dict[str, object] | None:
+    """Choose an exact line or a general review; never misplace a path-specific finding."""
+    path, line = finding.get("path"), finding.get("line")
+    if safe_path(path):
+        if isinstance(line, int) and line in right.get(path, set()):
+            return {"path": path, "line": line, "side": "RIGHT"}
+        print(f"Claude publisher warning: no exact inline anchor for finding path {inline(path)}")
+        return None
+    return fallback
+
+
 def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[str, Any] | None]:
     """Return a stable round for this SHA using explicit markers, not comment ordering."""
     records: list[tuple[dict[str, Any], str, int | None]] = []
@@ -295,7 +308,8 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     # required check remains the authoritative merge gate; this closes the
     # block→analyze→publish label race on ordinary workflow runs. A maintainer-
     # authorized forced review must opt in explicitly for this one process.
-    if "needs-human" in labels(client, args.pr) and os.environ.get("CLAUDE_HUMAN_REREVIEW") != "true":
+    forced_human_review = os.environ.get("CLAUDE_HUMAN_REREVIEW") == "true"
+    if "needs-human" in labels(client, args.pr) and not forced_human_review:
         raise PublishError(
             "publication is paused by needs-human; set CLAUDE_HUMAN_REREVIEW=true only for an authorized forced review"
         )
@@ -380,6 +394,8 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         for thread in all_threads:
             if any(FINDING_MARKER in (comment.get("body") or "") for comment in thread["comments"]["nodes"]):
                 set_resolved(client, thread, True)
+        if "needs-human" in labels(client, args.pr) and not forced_human_review:
+            raise PublishError("needs-human was applied during publication; refusing final label mutation")
         set_labels(client, args.pr, {"claude:approved"}, {"claude:changes-requested", "needs-human"})
         return
 
@@ -388,14 +404,13 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
     for finding in findings:
         if finding.get("severity") not in BLOCKING:
             continue
-        anchor = fallback
-        path, line = finding.get("path"), finding.get("line")
-        if safe_path(path) and isinstance(line, int) and line in right.get(path, set()):
-            anchor = {"path": path, "line": line, "side": "RIGHT"}
+        anchor = finding_anchor(finding, right, fallback)
         create_thread_or_review(client, args.pr, args.sha, anchor, finding_body(finding, args.sha, round_number))
     additions = {"claude:changes-requested"}
     if round_number >= 2:
         additions.add("needs-human")
+    if "needs-human" in labels(client, args.pr) and not forced_human_review:
+        raise PublishError("needs-human was applied during publication; refusing final label mutation")
     set_labels(client, args.pr, additions, {"claude:approved"})
 
 

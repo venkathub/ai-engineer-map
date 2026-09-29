@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -190,6 +191,50 @@ class ClaudeApiReviewTests(unittest.TestCase):
             self.assertEqual(api_review.main(), 0)
         verify.assert_called_once_with("hidden-key", api_review.DEFAULT_MODEL)
         review.assert_not_called()
+
+    def test_review_main_verifies_model_before_fetching_diff(self):
+        order = []
+        approved = json.dumps(
+            {
+                "verdict": "APPROVED",
+                "summary": "ok",
+                "findings": [],
+                "tests_reviewed": [],
+                "residual_risks": [],
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "ANTHROPIC_API_KEY": "hidden-key",
+                        "GITHUB_REPOSITORY": "owner/repo",
+                        "PR_NUMBER": "4",
+                        "GH_TOKEN": "hidden-token",
+                        "REVIEWED_SHA": "a" * 40,
+                    },
+                    clear=True,
+                ),
+                mock.patch.object(
+                    sys,
+                    "argv",
+                    ["claude_api_review.py", "--output", str(Path(directory) / "review.md")],
+                ),
+                mock.patch.object(
+                    api_review,
+                    "verify_model",
+                    side_effect=lambda *_: order.append("model"),
+                ),
+                mock.patch.object(
+                    api_review,
+                    "fetch_pull_request_diff",
+                    side_effect=lambda *_: order.append("diff") or "diff --git a/x b/x",
+                ),
+                mock.patch.object(api_review, "call_claude", return_value=(approved, {})),
+            ):
+                self.assertEqual(api_review.main(), 0)
+        self.assertEqual(order, ["model", "diff"])
 
 
 def urllib_error(status, body):

@@ -296,6 +296,8 @@ def main() -> int:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
             raise ProviderError("ANTHROPIC_API_KEY is not configured")
+        model = resolve_model(os.environ.get("CLAUDE_REVIEW_MODEL"))
+        verify_model(api_key, model)
         if args.diff_file:
             diff = args.diff_file.read_text(encoding="utf-8")
             if len(diff.encode("utf-8")) > MAX_DIFF_BYTES:
@@ -305,8 +307,6 @@ def main() -> int:
             pr_number = int(os.environ.get("PR_NUMBER", "0"))
             github_token = os.environ.get("GH_TOKEN", "")
             diff = fetch_pull_request_diff(repository, pr_number, reviewed_sha, github_token)
-        model = resolve_model(os.environ.get("CLAUDE_REVIEW_MODEL"))
-        verify_model(api_key, model)
         raw_review, usage = call_claude(api_key, model, build_prompt(diff, load_rules(), reviewed_sha))
         review = normalize_review(raw_review)
         approved = review["verdict"] == "APPROVED"
