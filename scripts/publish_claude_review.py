@@ -170,7 +170,10 @@ def verify_write_capability(client: GitHub) -> None:
     # trusted workflow declares issues/pull-requests write; every subsequent
     # mutation remains fail-closed if GitHub denies that endpoint scope.
     if os.environ.get("GITHUB_ACTIONS") == "true" and permission == "READ":
-        print("GitHub Actions token write capability is enforced by job-scoped permissions")
+        print(
+            "GitHub Actions token write capability is enforced by job-scoped "
+            "permissions; subsequent mutations remain fail-closed"
+        )
         return
     raise PublishError("GitHub token does not have repository write capability")
 
