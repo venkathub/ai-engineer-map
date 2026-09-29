@@ -8,15 +8,17 @@ concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
-  claude-review:
+  analyze:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      approved: ${{ steps.decision.outputs.approved }}
+      verdict: ${{ steps.decision.outputs.verdict }}
     steps:
       - name: Check out trusted base revision
         uses: actions/checkout@v4
@@ -85,8 +87,44 @@ jobs:
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
         run: python3 scripts/claude_api_review.py --output claude-review.md
 
-      - name: Publish current Claude review
+      - name: Validate selected review route
+        id: decision
         if: always()
+        env:
+          API_APPROVED: ${{ steps.api-gate.outputs.approved }}
+          API_GATE_OUTCOME: ${{ steps.api-gate.outcome }}
+          API_VERDICT: ${{ steps.api-gate.outputs.verdict }}
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+          SUBSCRIPTION_APPROVED: ${{ steps.subscription-gate.outputs.approved }}
+          SUBSCRIPTION_GATE_OUTCOME: ${{ steps.subscription-gate.outcome }}
+          SUBSCRIPTION_OUTCOME: ${{ steps.subscription.outcome }}
+          SUBSCRIPTION_VERDICT: ${{ steps.subscription-gate.outputs.verdict }}
+        run: python3 scripts/claude_review_decision.py --report claude-review.md
+
+      - name: Retain sanitized review report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-${{ github.event.pull_request.number }}
+          path: claude-review.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: analyze
+    if: always() && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: none
+      pull-requests: write
+    steps:
+      - name: Download sanitized review report
+        uses: actions/download-artifact@v4
+        with:
+          name: claude-review-${{ github.event.pull_request.number }}
+
+      - name: Publish current Claude review
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -99,12 +137,23 @@ jobs:
           fi
           cat claude-review.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Enforce Claude approval
-        if: always()
+  claude-review:
+    needs: [analyze, publish]
+    if: always() && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Enforce current Claude approval
         env:
-          APPROVED: ${{ steps.subscription-gate.outputs.approved == 'true' || steps.api-gate.outputs.approved == 'true' }}
+          ANALYZE_RESULT: ${{ needs.analyze.result }}
+          APPROVED: ${{ needs.analyze.outputs.approved }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
         run: |
+          if [ "$ANALYZE_RESULT" != "success" ] || [ "$PUBLISH_RESULT" != "success" ]; then
+            echo "Claude review pipeline did not complete successfully." >&2
+            exit 1
+          fi
           if [ "$APPROVED" != "true" ]; then
-            echo "Claude review has not approved this revision." >&2
+            echo "Claude has not approved this revision." >&2
             exit 1
           fi

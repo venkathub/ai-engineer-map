@@ -2,7 +2,7 @@
 
 Every non-draft pull request is reviewed at its current head commit by the `Claude PR Review` workflow. The workflow publishes one persistent report on the pull request and exposes the `claude-review` required check.
 
-The workflow runs trusted code from the base branch through `pull_request_target`. It fetches the pull-request diff as untrusted text through GitHub's API and sends that text to Anthropic's Messages API. It never checks out or executes pull-request code with a secret present. Claude receives no tools and cannot edit files, execute code, push commits, or merge. A deterministic repository script validates its schema-constrained result. The check passes only when Claude returns `APPROVED` with zero actionable findings.
+The workflow runs trusted code from the base branch through `pull_request_target`. It fetches the pull-request diff as untrusted text and never checks out or executes pull-request code with a secret present. Claude receives only read tools on the subscription route and no tools on the API route; neither route can edit files, execute PR code, push, or merge. Analysis runs with read-only GitHub permissions, its sanitized report crosses jobs as a one-day artifact, and only an isolated publisher job receives `pull-requests: write`. A tested route-decision script requires exactly one valid result. The final `claude-review` job passes only when the selected route returns `APPROVED` with zero actionable findings and report publication succeeds.
 
 ## Authentication
 
