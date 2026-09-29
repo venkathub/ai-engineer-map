@@ -24,13 +24,35 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertIn("<pull_request_diff>", prompt)
 
     def test_fetch_diff_uses_github_diff_media_type(self):
-        with mock.patch.object(api_review, "_request", return_value=b"diff --git a/x b/x") as request:
-            diff = api_review.fetch_pull_request_diff("owner/repo", 4, "hidden-token")
+        head_sha = "a" * 40
+        base_sha = "b" * 40
+        metadata = {"head": {"sha": head_sha}, "base": {"sha": base_sha}}
+        with mock.patch.object(
+            api_review,
+            "_request",
+            side_effect=[json.dumps(metadata).encode(), b"diff --git a/x b/x"],
+        ) as request:
+            diff = api_review.fetch_pull_request_diff("owner/repo", 4, head_sha, "hidden-token")
         self.assertEqual(diff, "diff --git a/x b/x")
-        headers = dict(request.call_args.args[0].header_items())
+        self.assertEqual(request.call_count, 2)
+        headers = dict(request.call_args_list[1].args[0].header_items())
         self.assertEqual(headers["Accept"], "application/vnd.github.v3.diff")
         self.assertEqual(headers["Authorization"], "Bearer hidden-token")
-        self.assertEqual(request.call_args.kwargs["max_bytes"], api_review.MAX_DIFF_BYTES)
+        self.assertIn(f"/compare/{base_sha}...{head_sha}", request.call_args_list[1].args[0].full_url)
+        self.assertEqual(
+            request.call_args_list[1].kwargs["max_bytes"], api_review.MAX_DIFF_BYTES
+        )
+
+    def test_fetch_diff_rejects_head_changed_after_event(self):
+        expected_sha = "a" * 40
+        metadata = {"head": {"sha": "b" * 40}, "base": {"sha": "c" * 40}}
+        with mock.patch.object(
+            api_review, "_request", return_value=json.dumps(metadata).encode()
+        ) as request:
+            with self.assertRaises(api_review.ProviderError) as raised:
+                api_review.fetch_pull_request_diff("owner/repo", 4, expected_sha, "hidden-token")
+        self.assertEqual(request.call_count, 1)
+        self.assertIn("head changed", str(raised.exception))
 
     def test_verify_model_accepts_exact_live_catalog_id(self):
         model_record = {"id": "claude-sonnet-5", "type": "model"}
@@ -54,6 +76,9 @@ class ClaudeApiReviewTests(unittest.TestCase):
         self.assertEqual(api_review.resolve_model("   "), api_review.DEFAULT_MODEL)
         self.assertEqual(api_review.resolve_model(None), api_review.DEFAULT_MODEL)
         self.assertEqual(api_review.resolve_model(" model-id "), "model-id")
+        for invalid in ("../model", "MODEL", "https://example.test", "x" * 129):
+            with self.assertRaises(api_review.ProviderError):
+                api_review.resolve_model(invalid)
 
     def test_reviewed_sha_requires_full_lowercase_commit_id(self):
         valid = "a" * 40

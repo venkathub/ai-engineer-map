@@ -17,40 +17,46 @@ SPEC.loader.exec_module(decision)
 class ClaudeReviewDecisionTests(unittest.TestCase):
     def test_selects_successful_subscription_review(self):
         result = decision.select_result(
-            "success", "success", "true", "APPROVED", "skipped", "", ""
+            "success", "success", "true", "APPROVED", "0", "skipped", "", "", ""
         )
-        self.assertEqual(result, (True, "APPROVED"))
+        self.assertEqual(result, (True, "APPROVED", 0))
 
     def test_selects_api_after_subscription_failure(self):
         result = decision.select_result(
-            "failure", "skipped", "", "", "success", "false", "CHANGES_REQUESTED"
+            "failure", "skipped", "", "", "", "success", "false", "CHANGES_REQUESTED", "2"
         )
-        self.assertEqual(result, (False, "CHANGES_REQUESTED"))
+        self.assertEqual(result, (False, "CHANGES_REQUESTED", 2))
 
     def test_rejects_missing_api_fallback_output(self):
         with self.assertRaises(decision.ReviewError):
-            decision.select_result("failure", "skipped", "", "", "failure", "", "")
+            decision.select_result("failure", "skipped", "", "", "", "failure", "", "", "")
 
     def test_rejects_inconsistent_approval_and_verdict(self):
         with self.assertRaises(decision.ReviewError):
             decision.select_result(
-                "success", "success", "true", "CHANGES_REQUESTED", "skipped", "", ""
+                "success", "success", "true", "CHANGES_REQUESTED", "1", "skipped", "", "", ""
             )
 
     def test_rejects_both_routes_running(self):
         with self.assertRaises(decision.ReviewError):
             decision.select_result(
-                "success", "success", "true", "APPROVED", "success", "false", "ERROR"
+                "success", "success", "true", "APPROVED", "0", "success", "false", "ERROR", "0"
             )
 
     def test_rejects_unset_api_outcome_after_subscription_success(self):
         with self.assertRaises(decision.ReviewError):
-            decision.select_result("success", "success", "true", "APPROVED", "", "", "")
+            decision.select_result("success", "success", "true", "APPROVED", "0", "", "", "", "")
 
     def test_rejects_subscription_gate_success_after_subscription_failure(self):
         with self.assertRaises(decision.ReviewError):
             decision.select_result(
-                "failure", "success", "true", "APPROVED", "success", "false", "ERROR"
+                "failure", "success", "true", "APPROVED", "0", "success", "false", "ERROR", "0"
+            )
+
+    def test_rejects_finding_count_inconsistent_with_verdict(self):
+        with self.assertRaises(decision.ReviewError):
+            decision.select_result(
+                "failure", "skipped", "", "", "", "success", "false", "CHANGES_REQUESTED", "0"
             )
 
     def test_failure_report_is_written_when_route_report_is_missing(self):

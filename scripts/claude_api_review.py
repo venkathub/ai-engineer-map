@@ -26,6 +26,7 @@ DEFAULT_MODEL = "claude-sonnet-5"
 MAX_DIFF_BYTES = 300_000
 REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+MODEL_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 
 REVIEW_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -86,28 +87,45 @@ def _request(
         raise ProviderError("provider request failed before receiving a response") from exc
 
 
-def fetch_pull_request_diff(repository: str, pr_number: int, github_token: str = "") -> str:
+def fetch_pull_request_diff(
+    repository: str, pr_number: int, reviewed_sha: str, github_token: str = ""
+) -> str:
     if not REPOSITORY_PATTERN.fullmatch(repository):
         raise ProviderError("invalid GitHub repository identifier")
     if pr_number < 1:
         raise ProviderError("invalid pull-request number")
+    reviewed_sha = validate_reviewed_sha(reviewed_sha)
     headers = {
-        "Accept": "application/vnd.github.v3.diff",
+        "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "ai-engineer-map-claude-review",
     }
     if github_token:
         headers["Authorization"] = f"Bearer {github_token}"
-    request = urllib.request.Request(
+    metadata_request = urllib.request.Request(
         f"https://api.github.com/repos/{repository}/pulls/{pr_number}", headers=headers
     )
-    raw = _request(request, max_bytes=MAX_DIFF_BYTES)
-    if len(raw) > MAX_DIFF_BYTES:
-        raise ProviderError(
-            f"pull-request diff exceeds the {MAX_DIFF_BYTES}-byte review limit; split the change"
-        )
+    metadata_raw = _request(metadata_request, max_bytes=1_000_000)
     try:
-        diff = raw.decode("utf-8")
+        metadata = json.loads(metadata_raw.decode("utf-8"))
+        head_sha = metadata["head"]["sha"]
+        base_sha = metadata["base"]["sha"]
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise ProviderError("GitHub returned unreadable pull-request metadata") from exc
+    if not SHA_PATTERN.fullmatch(head_sha) or not SHA_PATTERN.fullmatch(base_sha):
+        raise ProviderError("GitHub returned an invalid pull-request commit ID")
+    if head_sha != reviewed_sha:
+        raise ProviderError("pull-request head changed before its diff could be reviewed")
+
+    diff_headers = dict(headers)
+    diff_headers["Accept"] = "application/vnd.github.v3.diff"
+    diff_request = urllib.request.Request(
+        f"https://api.github.com/repos/{repository}/compare/{base_sha}...{head_sha}",
+        headers=diff_headers,
+    )
+    diff_raw = _request(diff_request, max_bytes=MAX_DIFF_BYTES)
+    try:
+        diff = diff_raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ProviderError("pull-request diff is not valid UTF-8") from exc
     if not diff.strip():
@@ -137,7 +155,10 @@ def verify_model(api_key: str, model: str) -> None:
 
 
 def resolve_model(configured: str | None) -> str:
-    return configured.strip() if configured and configured.strip() else DEFAULT_MODEL
+    model = configured.strip() if configured and configured.strip() else DEFAULT_MODEL
+    if not MODEL_PATTERN.fullmatch(model):
+        raise ProviderError("configured Claude review model has an invalid identifier")
+    return model
 
 
 def validate_reviewed_sha(value: str) -> str:
@@ -275,7 +296,7 @@ def main() -> int:
             repository = os.environ.get("GITHUB_REPOSITORY", "")
             pr_number = int(os.environ.get("PR_NUMBER", "0"))
             github_token = os.environ.get("GH_TOKEN", "")
-            diff = fetch_pull_request_diff(repository, pr_number, github_token)
+            diff = fetch_pull_request_diff(repository, pr_number, reviewed_sha, github_token)
         model = resolve_model(os.environ.get("CLAUDE_REVIEW_MODEL"))
         verify_model(api_key, model)
         raw_review, usage = call_claude(api_key, model, build_prompt(diff, load_rules(), reviewed_sha))

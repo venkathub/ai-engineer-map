@@ -37,6 +37,12 @@ class ClaudeReviewWorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.analyze.outputs.approved", gate)
         self.assertIn("needs.publish.result", gate)
 
+    def test_finding_count_is_propagated_without_parsing_markdown(self):
+        self.assertIn("finding_count: ${{ steps.decision.outputs.finding_count }}", self.workflow)
+        publisher = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
+        self.assertIn("REVIEW_FINDING_COUNT", publisher)
+        self.assertNotIn("report.match(/### Actionable findings", publisher)
+
     def test_publisher_maintains_a_separate_resolvable_review_thread(self):
         publisher = self.workflow.split("  publish:", 1)[1].split("  claude-review:", 1)[0]
         self.assertIn("<!-- claude-review-thread -->", publisher)

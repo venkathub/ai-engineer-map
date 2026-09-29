@@ -18,6 +18,7 @@ jobs:
       pull-requests: read
     outputs:
       approved: ${{ steps.decision.outputs.approved }}
+      finding_count: ${{ steps.decision.outputs.finding_count }}
       verdict: ${{ steps.decision.outputs.verdict }}
     steps:
       - name: Check out trusted base revision
@@ -93,10 +94,12 @@ jobs:
         if: always()
         env:
           API_APPROVED: ${{ steps.api-gate.outputs.approved }}
+          API_FINDING_COUNT: ${{ steps.api-gate.outputs.finding_count }}
           API_GATE_OUTCOME: ${{ steps.api-gate.outcome }}
           API_VERDICT: ${{ steps.api-gate.outputs.verdict }}
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
           SUBSCRIPTION_APPROVED: ${{ steps.subscription-gate.outputs.approved }}
+          SUBSCRIPTION_FINDING_COUNT: ${{ steps.subscription-gate.outputs.finding_count }}
           SUBSCRIPTION_GATE_OUTCOME: ${{ steps.subscription-gate.outcome }}
           SUBSCRIPTION_OUTCOME: ${{ steps.subscription.outcome }}
           SUBSCRIPTION_VERDICT: ${{ steps.subscription-gate.outputs.verdict }}
@@ -128,6 +131,7 @@ jobs:
       - name: Publish current Claude review
         env:
           REVIEW_APPROVED: ${{ needs.analyze.outputs.approved }}
+          REVIEW_FINDING_COUNT: ${{ needs.analyze.outputs.finding_count }}
           REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
         uses: actions/github-script@v7
         with:
@@ -141,6 +145,10 @@ jobs:
             const auditMarker = "<!-- claude-pr-review -->";
             const threadMarker = "<!-- claude-review-thread -->";
             const approved = process.env.REVIEW_APPROVED === "true";
+            if (!/^\d+$/.test(process.env.REVIEW_FINDING_COUNT)) {
+              throw new Error("REVIEW_FINDING_COUNT must be a non-negative integer");
+            }
+            const findingCount = Number(process.env.REVIEW_FINDING_COUNT);
             if (!/^[0-9a-f]{40}$/.test(process.env.REVIEWED_SHA)) {
               throw new Error("REVIEWED_SHA must be a 40-character lowercase Git commit ID");
             }
@@ -158,8 +166,6 @@ jobs:
                   owner, repo, issue_number: pull_number, body: report,
                 });
 
-            const findingMatch = report.match(/### Actionable findings \((\d+)\)/);
-            const findingCount = findingMatch ? Number(findingMatch[1]) : 0;
             const auditUrl = audit.data.html_url;
             const compact = [
               threadMarker,
