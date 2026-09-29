@@ -22,7 +22,7 @@ from claude_review_gate import (
 )
 
 API_VERSION = "2023-06-01"
-DEFAULT_MODEL = "claude-sonnet-5"  # Verified against Anthropic's live model list on 2026-09-29.
+DEFAULT_MODEL = "claude-sonnet-5"
 MAX_DIFF_BYTES = 300_000
 REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
@@ -60,10 +60,17 @@ class ProviderError(ReviewError):
     """A safe, user-visible provider or GitHub API failure."""
 
 
-def _request(request: urllib.request.Request, timeout: int = 60) -> bytes:
+def _request(
+    request: urllib.request.Request, timeout: int = 60, max_bytes: int | None = None
+) -> bytes:
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read()
+            if max_bytes is None:
+                return response.read()
+            body = response.read(max_bytes + 1)
+            if len(body) > max_bytes:
+                raise ProviderError(f"provider response exceeds the {max_bytes}-byte limit")
+            return body
     except urllib.error.HTTPError as exc:
         error_type = "unknown"
         try:
@@ -93,7 +100,7 @@ def fetch_pull_request_diff(repository: str, pr_number: int, github_token: str =
     request = urllib.request.Request(
         f"https://api.github.com/repos/{repository}/pulls/{pr_number}", headers=headers
     )
-    raw = _request(request)
+    raw = _request(request, max_bytes=MAX_DIFF_BYTES)
     if len(raw) > MAX_DIFF_BYTES:
         raise ProviderError(
             f"pull-request diff exceeds the {MAX_DIFF_BYTES}-byte review limit; split the change"

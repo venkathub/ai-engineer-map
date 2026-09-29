@@ -29,6 +29,7 @@ class ClaudeApiReviewTests(unittest.TestCase):
         headers = dict(request.call_args.args[0].header_items())
         self.assertEqual(headers["Accept"], "application/vnd.github.v3.diff")
         self.assertEqual(headers["Authorization"], "Bearer hidden-token")
+        self.assertEqual(request.call_args.kwargs["max_bytes"], api_review.MAX_DIFF_BYTES)
 
     def test_verify_model_accepts_exact_live_catalog_id(self):
         model_record = {"id": "claude-sonnet-5", "type": "model"}
@@ -111,6 +112,15 @@ class ClaudeApiReviewTests(unittest.TestCase):
                 api_review._request(request)
         self.assertIn("authentication_error", str(raised.exception))
         self.assertNotIn("private", str(raised.exception))
+
+    def test_request_caps_untrusted_response_before_buffering(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b"1234"
+        with mock.patch("urllib.request.urlopen", return_value=response):
+            with self.assertRaises(api_review.ProviderError) as raised:
+                api_review._request(mock.Mock(), max_bytes=3)
+        response.__enter__.return_value.read.assert_called_once_with(4)
+        self.assertIn("3-byte limit", str(raised.exception))
 
 
 def urllib_error(status, body):

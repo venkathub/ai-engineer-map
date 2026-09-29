@@ -47,6 +47,12 @@ class ClaudeReviewDecisionTests(unittest.TestCase):
         with self.assertRaises(decision.ReviewError):
             decision.select_result("success", "success", "true", "APPROVED", "", "", "")
 
+    def test_rejects_subscription_gate_success_after_subscription_failure(self):
+        with self.assertRaises(decision.ReviewError):
+            decision.select_result(
+                "failure", "success", "true", "APPROVED", "success", "false", "ERROR"
+            )
+
     def test_failure_report_is_written_when_route_report_is_missing(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "review.md"

@@ -224,27 +224,41 @@ jobs:
                 owner, repo, pull_number, per_page: 100,
               });
               let anchor = null;
+              let deletionAnchor = null;
               for (const file of files) {
                 if (!file.patch) continue;
+                let oldLine = 0;
                 let newLine = 0;
                 for (const line of file.patch.split("\n")) {
-                  const header = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+                  const header = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
                   if (header) {
-                    newLine = Number(header[1]);
+                    oldLine = Number(header[1]);
+                    newLine = Number(header[2]);
                   } else if (line.startsWith("+") && !line.startsWith("+++")) {
-                    anchor = { path: file.filename, line: newLine };
+                    anchor = { path: file.filename, line: newLine, side: "RIGHT" };
                     break;
-                  } else if (!line.startsWith("-")) {
+                  } else if (line.startsWith("-") && !line.startsWith("---")) {
+                    deletionAnchor ||= { path: file.filename, line: oldLine, side: "LEFT" };
+                    oldLine += 1;
+                  } else {
+                    oldLine += 1;
                     newLine += 1;
                   }
                 }
                 if (anchor) break;
               }
-              if (!anchor) throw new Error("No added diff line is available for the Claude thread");
-              await github.rest.pulls.createReviewComment({
-                owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
-                path: anchor.path, line: anchor.line, side: "RIGHT", body: compact,
-              });
+              anchor ||= deletionAnchor;
+              if (anchor) {
+                await github.rest.pulls.createReviewComment({
+                  owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
+                  path: anchor.path, line: anchor.line, side: anchor.side, body: compact,
+                });
+              } else {
+                await github.rest.pulls.createReview({
+                  owner, repo, pull_number, commit_id: process.env.REVIEWED_SHA,
+                  event: "COMMENT", body: compact,
+                });
+              }
             }
             await core.summary.addRaw(report).write();
 

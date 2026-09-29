@@ -28,6 +28,10 @@ def select_result(
             raise ReviewError("API fallback ran after a successful subscription review")
         approved, verdict = subscription_approved, subscription_verdict
     else:
+        if subscription_gate_outcome != "skipped":
+            raise ReviewError(
+                "subscription report gate completed without a successful subscription review"
+            )
         if api_gate_outcome != "success":
             raise ReviewError("subscription review failed and API fallback did not complete")
         approved, verdict = api_approved, api_verdict

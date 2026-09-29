@@ -18,7 +18,7 @@ Generate the OAuth token from the intended Pro or Max account and paste each cre
 
 The API fallback accepts at most 300,000 bytes of diff text. Split larger changes into smaller pull requests; exceeding the limit produces a fail-closed review-unavailable report instead of an unbounded model request.
 
-The `claude-sonnet-5` fallback was verified on **2026-09-29** against Anthropic's live model API and the official Sonnet 5 documentation. Before each fallback review, the script retrieves that exact ID through `/v1/models/{model_id}` and fails closed unless Anthropic confirms it. `scripts/claude_api_review.py` is the single default source; an Actions variable overrides it only when non-empty.
+The runtime model check is the source of truth: before every fallback review, the script retrieves the configured ID through Anthropic's `/v1/models/{model_id}` endpoint and fails closed unless Anthropic confirms it. The script currently defaults to `claude-sonnet-5`; an Actions variable overrides it only when non-empty.
 
 Local credentials may remain in the ignored `.env` for hands-on exercises, but the workflow reads encrypted Actions secrets. Never place either value in workflow YAML, pull-request text, logs, or repository variables. Rotate them according to the provider's policy. Each report identifies whether subscription OAuth or the API fallback produced its verdict without exposing credential details.
 
@@ -28,7 +28,7 @@ Local credentials may remain in the ignored `.env` for hands-on exercises, but t
 2. Wait for `curriculum-and-labs` and `claude-review`.
 3. Read the persistent audit comment and its compact inline review thread. When Claude reports `CHANGES_REQUESTED`, address every listed finding ID in the branch.
 4. Push the fixes. The audit report and compact thread are updated, and Claude reviews the complete updated diff.
-5. Repeat until the current head commit is `APPROVED` with zero findings. The publisher then resolves the compact Claude thread; a later regression reopens it.
+5. Repeat until the current head commit is `APPROVED` with zero findings. The publisher then resolves the compact Claude thread; a later regression reopens it. For a binary/rename-only diff with no commentable line, GitHub receives a compact general PR review instead because its API cannot create a resolvable inline thread without an anchor.
 6. Resolve any human review conversations and squash-merge only while all required checks are green and the Claude thread is resolved.
 
 A stale Claude result cannot approve a newer commit because each push starts a new check, cancels the obsolete run, and records the exact reviewed SHA in the report. Authentication errors, malformed output, model failures, or missing credentials fail closed.
