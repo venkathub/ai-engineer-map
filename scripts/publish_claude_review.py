@@ -158,12 +158,21 @@ query($owner:String!,$repo:String!){repository(owner:$owner,name:$repo){viewerPe
 
 
 def verify_write_capability(client: GitHub) -> None:
-    """Fail before mutation unless GitHub recognizes this token as a repository writer."""
+    """Reject under-privileged user tokens; Actions tokens rely on job scopes."""
     owner, repo = client.repository.split("/", 1)
     data = client.graphql(PERMISSION_QUERY, {"owner": owner, "repo": repo})
     permission = data.get("repository", {}).get("viewerPermission")
-    if permission not in {"WRITE", "MAINTAIN", "ADMIN"}:
-        raise PublishError("GitHub token does not have repository write capability")
+    if permission in {"WRITE", "MAINTAIN", "ADMIN"}:
+        return
+    # GITHUB_TOKEN is an installation token whose endpoint permissions are
+    # defined by the job's `permissions:` block. GraphQL viewerPermission can
+    # still report READ, so repository-role probing cannot validate it. The
+    # trusted workflow declares issues/pull-requests write; every subsequent
+    # mutation remains fail-closed if GitHub denies that endpoint scope.
+    if os.environ.get("GITHUB_ACTIONS") == "true" and permission == "READ":
+        print("GitHub Actions token write capability is enforced by job-scoped permissions")
+        return
+    raise PublishError("GitHub token does not have repository write capability")
 
 
 def threads(client: GitHub, pr: int) -> list[dict[str, Any]]:

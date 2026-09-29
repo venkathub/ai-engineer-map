@@ -1,8 +1,10 @@
 import importlib.util
 import io
+import os
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).parents[1] / "scripts" / "publish_claude_review.py"
@@ -196,8 +198,15 @@ class PublishClaudeReviewTests(unittest.TestCase):
         for permission in ("WRITE", "MAINTAIN", "ADMIN"):
             publisher.verify_write_capability(Client(permission))
         for permission in ("READ", "TRIAGE", None):
-            with self.assertRaises(publisher.PublishError):
-                publisher.verify_write_capability(Client(permission))
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with self.assertRaises(publisher.PublishError):
+                    publisher.verify_write_capability(Client(permission))
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True):
+            publisher.verify_write_capability(Client("READ"))
+            for permission in ("TRIAGE", None):
+                with self.assertRaises(publisher.PublishError):
+                    publisher.verify_write_capability(Client(permission))
 
     def test_publish_authorization_fails_closed_on_human_hold(self):
         class Client:
