@@ -332,23 +332,13 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
     same = next((record for record in records if record[1] == sha), None)
     explicit_max = max((record[2] or 0 for record in records), default=0)
     if same:
-        # Old markers had no explicit round. Preserve their observed round once,
-        # then rewrite them to the explicit format on this publication.
+        # Explicit markers are authoritative. All pre-migration markers are
+        # deliberately treated as round one instead of reconstructing history.
         if same[2]:
             return same[2], same[0]
-        legacy = sorted(
-            (record for record in records if record[2] is None),
-            key=lambda record: int(record[0].get("id", 0)),
-        )
-        legacy_rounds = {
-            int(record[0].get("id", 0)): index
-            for index, record in enumerate(legacy, start=1)
-        }
-        return legacy_rounds[int(same[0].get("id", 0))], same[0]
-    # Legacy records receive deterministic ID order only during one-time
-    # migration. Explicit markers remain the sole counter after migration.
-    legacy_count = sum(1 for record in records if record[2] is None)
-    return max(explicit_max, legacy_count) + 1, None
+        return 1, same[0]
+    legacy_round = 1 if any(record[2] is None for record in records) else 0
+    return max(explicit_max, legacy_round) + 1, None
 
 
 def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]]) -> None:

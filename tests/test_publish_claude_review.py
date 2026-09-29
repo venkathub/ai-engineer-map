@@ -130,17 +130,27 @@ class PublishClaudeReviewTests(unittest.TestCase):
         ]
         self.assertEqual(publisher.review_round(comments, "d" * 40), (4, None))
 
-    def test_legacy_same_sha_uses_deterministic_comment_id_order(self):
+    def test_every_legacy_marker_is_treated_as_round_one(self):
         comments = [
             {"id": 20, "body": f"{publisher.ROUND_MARKER}{'b' * 40} -->"},
             {"id": 10, "body": f"{publisher.ROUND_MARKER}{'a' * 40} -->"},
         ]
         self.assertEqual(publisher.review_round(comments, "a" * 40)[0], 1)
-        self.assertEqual(publisher.review_round(comments, "b" * 40)[0], 2)
+        self.assertEqual(publisher.review_round(comments, "b" * 40)[0], 1)
+        self.assertEqual(publisher.review_round(comments, "c" * 40)[0], 2)
 
-    def test_legacy_round_lookup_does_not_use_list_index(self):
-        source = MODULE_PATH.read_text(encoding="utf-8")
-        self.assertNotIn("legacy.index(same)", source)
+    def test_explicit_rounds_follow_comment_create_and_edit_shapes(self):
+        comments = []
+        sha_a, sha_b, sha_c = "a" * 40, "b" * 40, "c" * 40
+        round_a, existing = publisher.review_round(comments, sha_a)
+        self.assertEqual((round_a, existing), (1, None))
+        comments.append({"id": 100, "body": f"{publisher.ROUND_MARKER}{sha_a}:r1 -->"})
+        round_b, existing = publisher.review_round(comments, sha_b)
+        self.assertEqual((round_b, existing), (2, None))
+        comments.append({"id": 101, "body": f"{publisher.ROUND_MARKER}{sha_b}:r2 -->"})
+        self.assertEqual(publisher.review_round(comments, sha_b)[0], 2)
+        self.assertEqual(publisher.review_round(comments, sha_b)[1]["id"], 101)
+        self.assertEqual(publisher.review_round(comments, sha_c), (3, None))
 
     def test_thread_inventory_fails_closed_when_graphql_is_truncated(self):
         class Client:
