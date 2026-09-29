@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -55,7 +56,23 @@ class ClaudeReviewGateTests(unittest.TestCase):
         self.assertIn("@\u200bteam", report)
         self.assertNotIn("<!-- hidden -->", report)
 
+    def test_failure_diagnostic_exposes_codes_but_not_provider_message(self):
+        record = {
+            "type": "result",
+            "is_error": True,
+            "api_error_status": 401,
+            "error": "authentication_failed",
+            "terminal_reason": "api_error",
+            "result": "Failed with secret provider details that must stay private",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "execution.json"
+            path.write_text(json.dumps(record), encoding="utf-8")
+            diagnostic = review_gate.safe_failure_diagnostic(str(path))
+        self.assertIn("HTTP 401", diagnostic)
+        self.assertIn("authentication_failed", diagnostic)
+        self.assertNotIn("secret provider details", diagnostic)
+
 
 if __name__ == "__main__":
     unittest.main()
-
