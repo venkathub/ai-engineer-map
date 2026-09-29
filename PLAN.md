@@ -97,7 +97,7 @@ The current role-coverage audit contains 104 concepts across 12 tracks. See `doc
 - [x] Read-only JarvisLabs authentication, region/workload availability, and account-readiness audit
 - [x] Secret-safe remote CUDA, storage, dependency, and required-environment check script
 - [ ] Automate the remaining guided exercises track by track
-- [ ] Surface execution readiness, cost, artifacts, and cleanup in the browser lab
+- [x] Surface execution status, requirements, commands, cost, artifacts, and cleanup in the browser lab (machine readiness is checked in the terminal)
 - [x] Run the remote environment check on an explicitly authorized GPU and destroy the instance afterward
 
 ### M6 — Portfolio and community

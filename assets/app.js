@@ -266,25 +266,74 @@ trace.record(result.metrics)</code></pre></section>
   $("#lesson-complete").addEventListener("click", () => { toggleDone(item.id); renderLessonPage(); });
 }
 
+// Display argv as a POSIX command without interpreting curriculum strings as shell code.
+function shellCommand(argv) {
+  return argv.map((part) => /^[a-zA-Z0-9_@%+=:,./-]+$/.test(part) ? part : `'${part.replace(/'/g, `'"'"'`)}'`).join(" ");
+}
+
+async function renderLabExecution(item) {
+  const panel = $("#lab-execution");
+  const restoreFocus = panel.contains(document.activeElement);
+  panel.setAttribute("aria-busy", "true");
+  try {
+    const response = await fetch("curriculum/hoe.json");
+    if (!response.ok) throw new Error("Execution catalog unavailable");
+    const catalog = await response.json();
+    const profileId = catalog.topics?.[item.id];
+    const execution = catalog.profiles?.[profileId];
+    const strings = (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string");
+    const command = (value) => value === null || (strings(value) && value.length > 0 && value.every((part) => part.length > 0));
+    if (catalog.schemaVersion !== 1 || !execution ||
+        !["guided", "automated", "setup-ready"].includes(execution.status) ||
+        !["browser", "local", "byo-api", "gpu"].includes(execution.mode) ||
+        !["requirements", "artifacts", "cleanup"].every((key) => strings(execution[key])) ||
+        !["setup", "run", "verify"].every((key) => command(execution[key])) ||
+        !Number.isInteger(execution.estimatedMinutes) || execution.estimatedMinutes <= 0 ||
+        typeof execution.estimatedCost !== "string" || !execution.estimatedCost ||
+        (execution.status === "automated" && (!execution.run || !execution.verify || execution.mode !== "local"))) {
+      throw new Error("Execution contract unavailable");
+    }
+    const explanations = {
+      guided: "Guided exercise. Complete the artifact and collect evidence manually; no automated runner is declared.",
+      automated: "Automated commands are available for your terminal. Your environment and results have not been checked by this page.",
+      "setup-ready": "Setup instructions are available. The topic experiment is not automated; environment checks do not prove the learning outcomes.",
+    };
+    const list = (items, empty) => items.length ? `<ul>${items.map((text) => `<li>${escapeHtml(text)}</li>`).join("")}</ul>` : `<p>${empty}</p>`;
+    const renderCommand = (title, argv, empty) => `<div class="execution-command"><h3>${title}</h3>${argv ? `<pre><code>${escapeHtml(shellCommand(argv))}</code></pre>` : `<p>${empty}</p>`}</div>`;
+    const external = ["byo-api", "gpu"].includes(execution.mode);
+    const prereqs = item.prerequisites.map(concept);
+    panel.innerHTML = `
+      <header><div><p class="overline">Execution guide</p><h2>${escapeHtml(item.title)}</h2></div><span class="execution-badge" data-execution-status="${execution.status}">${escapeHtml(execution.status)}</span></header>
+      <p>${explanations[execution.status]}</p>
+      <a class="execution-jump" href="#code-editor">Go to artifact editor ↓</a>
+      <dl class="execution-meta"><div><dt>Mode</dt><dd>${escapeHtml(execution.mode)}</dd></div><div><dt>Estimated time</dt><dd>${execution.estimatedMinutes} minutes</dd></div><div><dt>Estimated cost</dt><dd>${escapeHtml(execution.estimatedCost)}</dd></div><div><dt>Provider / GPU</dt><dd>${escapeHtml(execution.provider || "none")} / ${escapeHtml(execution.gpuBackend || "none")}</dd></div></dl>
+      <div class="execution-columns"><section><h3>Prerequisite concepts</h3>${prereqs.length ? `<ul>${prereqs.map((entry) => `<li><a href="${queryLink("concept.html", entry.id)}">${escapeHtml(entry.title)}</a></li>`).join("")}</ul>` : "<p>No prerequisite concepts.</p>"}<h3>Environment requirements</h3>${list(execution.requirements, "No additional requirements listed.")}</section>
+      <section><h3>Expected artifacts</h3>${list(execution.artifacts, "Record evidence for the learning outcomes.")}<h3>Cleanup</h3>${list(execution.cleanup, "No cleanup steps declared for this profile.")}</section></div>
+      ${external ? `<div class="execution-notice"><h3>Before using paid services</h3><p>Set a spend limit and keep credentials in your local environment or ignored .env file. Never paste secrets into this page. Review the cleanup steps before starting.</p>${execution.mode === "gpu" ? "<p>Choose an available GPU, region, and workload in your terminal before provisioning. Run the environment check on your GPU host; paused instances can retain billable storage.</p>" : ""}<p>The HOE CLI requires <code>--allow-billable</code> for API/GPU run or verify commands. This acknowledgement does not provision resources.</p><a href="docs/BYO_LLM_AND_GPU.md">Read API and GPU setup guidance →</a></div>` : ""}
+      <p class="execution-location">Commands below are POSIX terminal instructions from the repository root${execution.mode === "gpu" ? " (verification runs on the GPU host)" : ""}. This page does not execute them.</p>
+      <div class="execution-commands">${renderCommand("Setup / readiness check", execution.setup, "No setup command declared; check the requirements above.")}${renderCommand("Run exercise", execution.run, execution.status === "guided" ? "Use the artifact editor below and complete the exercise manually." : "No topic run command declared. Follow the setup guidance and perform the topic experiment manually.")}${renderCommand(execution.status === "setup-ready" ? "Environment verification only" : "Verify results", execution.verify, "No automated verification declared. Review real evidence against every learning outcome.")}</div>
+      <p class="execution-source">Profile: ${escapeHtml(profileId)} · <a href="curriculum/hoe.json">Execution catalog</a> · Inspect locally: <code>${escapeHtml(shellCommand(["./run.sh", "hoe", "inspect", item.id]))}</code></p>`;
+  } catch {
+    panel.innerHTML = `<h2>Execution instructions unavailable</h2><p role="status">The catalog could not be loaded or this topic has an invalid profile. Readiness is unknown. You can still draft your artifact below.</p><button class="button ghost" id="retry-execution">Retry loading instructions</button>`;
+    $("#retry-execution").addEventListener("click", () => renderLabExecution(item));
+  } finally {
+    panel.setAttribute("aria-busy", "false");
+    if (restoreFocus) { panel.tabIndex = -1; panel.focus({preventScroll:true}); }
+  }
+}
+
 function renderLabPage() {
   const item = concept(params.get("id")) || concept("vector-indexes");
   const profile = exerciseProfile(item);
   document.title = `${item.title} lab · AI Engineer Map`;
   $("#lab-title").textContent = item.title;
   $("#editor-filename").textContent = profile.filename;
-  $("#run-tests").textContent = profile.mode === "build" ? "Run checks ↗" : "Validate artifact ↗";
+  renderLabExecution(item);
   $("#lab-task").innerHTML = `<span class="overline">${profile.label} exercise</span><h1>${escapeHtml(item.exercise)}</h1><p>Every topic uses the same evidence contract, adapted to its artifact: complete the work, satisfy both learning outcomes, preserve provenance, and document a failure and trade-off.</p><ol><li>Read the objective and acceptance checks.</li><li>Complete the topic-specific starter artifact.</li><li>Validate each item with observable evidence.</li><li>Record a failure mode and production trade-off.</li></ol>`;
   $("#code-editor").value = profile.starter;
   $("#test-list").innerHTML = profile.checks.map((test) => `<li><i></i>${escapeHtml(test)}</li>`).join("");
   $("#run-tests").addEventListener("click", () => {
-    const button = $("#run-tests"); button.disabled = true; button.textContent = "Validating…";
-    $("#terminal").textContent = `$ validate ${profile.filename}\n\nCollecting ${profile.checks.length} acceptance checks for ${item.id}…`;
-    setTimeout(() => {
-      $$("#test-list li").forEach((row, index) => setTimeout(() => row.classList.add("pass"), index * 100));
-      $("#terminal").textContent = `$ validate ${profile.filename}\n${".".repeat(profile.checks.length)}\n----------------------------------------------------------------------\n${profile.checks.length} acceptance checks recorded\n\nREADY FOR REVIEW\n\nAttach real output, measurements, or screenshots before claiming completion.`;
-      button.disabled = false; button.textContent = profile.mode === "build" ? "Run checks ↗" : "Validate artifact ↗";
-      completed.add(item.id); saveProgress();
-    }, 500);
+    $("#terminal").textContent = `Manual review checklist for ${profile.filename}\n\n${profile.checks.map((check) => `□ ${check}`).join("\n")}\n\nNo code was executed or verified. Save your artifact and attach real output, measurements, or screenshots. Record completion in the roadmap after verifying your evidence.`;
   });
 }
 

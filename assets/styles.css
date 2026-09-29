@@ -41,3 +41,37 @@
 @media(max-width:1050px){.hero-grid{grid-template-columns:1fr}.hero-orbit{display:none}.roadmap-workspace{grid-template-columns:1fr}.concept-inspector{position:relative;top:0;min-height:0}.three-column,.lesson-layout{grid-template-columns:190px 1fr}.context-rail,.lesson-toc{display:none}.lab-workspace{grid-template-columns:250px 1fr}.test-panel{display:none}}
 @media(max-width:720px){.menu-button{display:block}.site-header nav{display:none;position:absolute;top:65px;left:0;right:0;flex-direction:column;padding:20px;background:var(--ink)}.menu-open .site-header nav{display:flex}.hero{padding-top:80px}.hero h1{font-size:54px}.stats{grid-template-columns:repeat(2,1fr)}.home-map>header,.learning-contract{grid-template-columns:1fr}.home-map>header{row-gap:15px}.learning-contract{gap:45px}.preview-row{grid-template-columns:35px 1fr}.preview-count{display:none}.roadmap-toolbar{grid-template-columns:1fr}.map-progress{min-width:0}.filter-row{max-height:80px;overflow:auto}.three-column,.lesson-layout{display:block}.track-sidebar,.lesson-sidebar{display:none}.concept-content,.lesson-article{padding:40px 22px 80px}.concept-breadcrumb{margin-bottom:45px}.concept-content h1,.lesson-article h1{font-size:50px}.outcome-grid,.production-grid{grid-template-columns:1fr}.lab-body{overflow:auto}.lab-header{grid-template-columns:1fr auto}.lab-name{display:none}.lab-workspace{display:block;height:auto}.lab-task{min-height:430px}.editor-panel{height:720px}.stats{margin-top:65px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero-orbit{animation:none}.progress i{transition:none}}
+/* Lab execution instructions remain visible alongside the artifact workspace. */
+.lab-body{overflow:auto}
+.lab-execution{padding:32px clamp(18px,4vw,58px);border-bottom:1px solid var(--line);background:var(--dark2)}
+.lab-execution header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.lab-execution h2{margin:0;font-size:32px;letter-spacing:-.035em}
+.lab-execution .overline{margin-bottom:10px}
+.lab-execution p,.lab-execution li{color:#b5b7ae;font-size:13px;line-height:1.6}
+.lab-execution h3{margin:20px 0 10px;font-size:14px}
+.execution-badge{padding:8px 12px;border:1px solid #6a7f32;color:var(--acid);font:12px var(--mono);text-transform:uppercase}
+.execution-meta{display:grid;grid-template-columns:1fr 1fr 2fr 1fr;gap:18px;margin:24px 0;padding:20px 0;border-block:1px solid var(--line)}
+.execution-meta dt{color:#a1a499;font:10px var(--mono);text-transform:uppercase}
+.execution-meta dd{margin:8px 0 0;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.execution-columns{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.lab-execution ul{padding-left:20px}
+.lab-execution a{color:var(--acid);text-underline-offset:3px}
+.execution-jump{display:inline-block;font-size:13px;padding:6px 0}
+.execution-notice{padding:4px 20px 16px;border-left:3px solid var(--acid);background:#24261f;margin:20px 0}
+.execution-notice a{font-size:13px}
+.execution-commands{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.execution-command{min-width:0;padding:0 16px 12px;border:1px solid #3a3c34}
+.execution-command pre{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--acid);font:12px/1.7 var(--mono)}
+.execution-source{overflow-wrap:anywhere}
+.lab-body .lab-workspace{height:auto;min-height:720px;grid-template-columns:minmax(220px,310px) minmax(0,1fr) minmax(220px,275px)}
+.lab-body .editor-panel{height:720px}
+.lab-body .lab-workspace>*{min-width:0}
+.lab-body .test-panel{display:block}
+.lab-body .lab-task{overflow:visible}
+.lab-body .lab-task .overline{color:#536619}
+.lab-body .terminal{white-space:pre-wrap;overflow-wrap:anywhere}
+.lab-body :focus-visible{outline:3px solid var(--acid);outline-offset:3px}
+.lab-body .lab-task :focus-visible{outline-color:#536619}
+.lab-body #code-editor:focus-visible{outline-offset:-4px}
+@media(max-width:1050px){.lab-body .lab-workspace{grid-template-columns:minmax(220px,280px) minmax(0,1fr)}.lab-body .test-panel{grid-column:1/-1}.execution-commands{grid-template-columns:1fr}.execution-meta{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.execution-columns,.execution-meta{grid-template-columns:1fr;gap:12px}.lab-body .lab-workspace{display:block}.lab-body .lab-task{min-height:0}.lab-body .panel-bar{flex-wrap:wrap;min-height:70px;gap:8px;padding:8px}.lab-body .panel-bar button{min-height:36px;padding:0 10px}.lab-body .editor-panel{grid-template-rows:auto minmax(0,1fr) 210px}.lab-body .lab-header{padding:0 12px;gap:8px}.lab-body .lab-header .brand{font-size:14px}.lab-body .lab-header>a:last-child{font-size:11px}}
