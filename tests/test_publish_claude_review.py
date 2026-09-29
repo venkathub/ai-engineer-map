@@ -1,8 +1,10 @@
 import importlib.util
 import io
+import os
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).parents[1] / "scripts" / "publish_claude_review.py"
@@ -19,6 +21,19 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertNotIn("<!-- hidden -->", rendered)
         self.assertNotIn("https://", rendered)
         self.assertNotIn("[x]", rendered)
+
+    def test_cli_surfaces_a_safely_escaped_actions_error(self):
+        error = publisher.PublishError("blocked:: 100%, retry\nneeds-human")
+        with (
+            mock.patch.object(publisher, "main", side_effect=error),
+            io.StringIO() as stderr,
+            mock.patch("sys.stderr", stderr),
+        ):
+            self.assertEqual(publisher.cli(), 1)
+            rendered = stderr.getvalue()
+        self.assertIn("::error title=Claude review publisher::", rendered)
+        self.assertIn("blocked%3A%3A 100%25, retry%0Aneeds-human", rendered)
+        self.assertNotIn("100%, retry\n", rendered)
 
     def test_paths_reject_traversal_and_controls(self):
         self.assertTrue(publisher.safe_path("scripts/check.py"))
@@ -152,6 +167,84 @@ class PublishClaudeReviewTests(unittest.TestCase):
         self.assertEqual(publisher.review_round(comments, sha_b)[1]["id"], 101)
         self.assertEqual(publisher.review_round(comments, sha_c), (3, None))
 
+    def test_round_discovery_combines_legacy_comments_and_native_reviews(self):
+        legacy_comment = {
+            "id": 100,
+            "body": f"{publisher.ROUND_MARKER}{'a' * 40}:r1 -->",
+        }
+        native_review = {
+            "id": 200,
+            "body": f"{publisher.ROUND_MARKER}{'b' * 40}:r2 -->",
+        }
+        records = [legacy_comment, native_review]
+        self.assertEqual(publisher.review_round(records, "b" * 40), (2, native_review))
+        self.assertEqual(publisher.review_round(records, "c" * 40), (3, None))
+
+    def test_native_round_review_is_visible_once_per_exact_head(self):
+        class Client:
+            def __init__(self, existing=None):
+                self.existing = existing or []
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                if method == "GET":
+                    return self.existing
+                return {}
+
+        sha = "a" * 40
+        body = f"{publisher.ROUND_MARKER}{sha}:r1 -->\nAPPROVED"
+        client = Client()
+        publisher.ensure_native_round_review(client, 4, sha, body)
+        self.assertEqual(client.calls[0][1], "/pulls/4/reviews?per_page=100&page=1")
+        self.assertEqual(client.calls[1][1], "/pulls/4/reviews")
+        self.assertEqual(client.calls[1][2]["commit_id"], sha)
+        self.assertEqual(client.calls[1][2]["event"], "COMMENT")
+
+        client = Client([{"body": body}])
+        publisher.ensure_native_round_review(client, 4, sha, body)
+        self.assertEqual(len(client.calls), 1)
+
+    def test_native_round_review_failure_fails_closed_and_remains_retryable(self):
+        class Client:
+            def __init__(self):
+                self.post_attempts = 0
+
+            def rest(self, method, _path, _payload=None):
+                if method == "GET":
+                    return []
+                self.post_attempts += 1
+                if self.post_attempts == 1:
+                    raise publisher.PublishError("transient native review failure")
+                return {}
+
+        client = Client()
+        sha = "a" * 40
+        body = f"{publisher.ROUND_MARKER}{sha}:r1 -->\nAPPROVED"
+        with self.assertRaisesRegex(publisher.PublishError, "transient native review failure"):
+            publisher.ensure_native_round_review(client, 4, sha, body)
+        publisher.ensure_native_round_review(client, 4, sha, body)
+        self.assertEqual(client.post_attempts, 2)
+
+    def test_preloaded_native_reviews_avoid_duplicate_query_and_publication(self):
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                return {}
+
+        sha = "a" * 40
+        body = f"{publisher.ROUND_MARKER}{sha}:r1 -->\nAPPROVED"
+        client = Client()
+        publisher.ensure_native_round_review(client, 4, sha, body, [{"body": body}])
+        self.assertEqual(client.calls, [])
+
+        publisher.ensure_native_round_review(client, 4, sha, body, [])
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual(client.calls[0][0:2], ("POST", "/pulls/4/reviews"))
+
     def test_thread_inventory_fails_closed_when_graphql_is_truncated(self):
         class Client:
             repository = "owner/repo"
@@ -196,8 +289,15 @@ class PublishClaudeReviewTests(unittest.TestCase):
         for permission in ("WRITE", "MAINTAIN", "ADMIN"):
             publisher.verify_write_capability(Client(permission))
         for permission in ("READ", "TRIAGE", None):
-            with self.assertRaises(publisher.PublishError):
-                publisher.verify_write_capability(Client(permission))
+            with mock.patch.dict(os.environ, {}, clear=True):
+                with self.assertRaises(publisher.PublishError):
+                    publisher.verify_write_capability(Client(permission))
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True):
+            publisher.verify_write_capability(Client("READ"))
+            for permission in ("TRIAGE", None):
+                with self.assertRaises(publisher.PublishError):
+                    publisher.verify_write_capability(Client(permission))
 
     def test_publish_authorization_fails_closed_on_human_hold(self):
         class Client:
@@ -208,6 +308,68 @@ class PublishClaudeReviewTests(unittest.TestCase):
             publisher.require_publish_authorization(Client(), 4, False, "test mutation")
         self.assertIn("test mutation", str(raised.exception))
         publisher.require_publish_authorization(Client(), 4, True, "forced mutation")
+
+    def test_new_head_revokes_approval_before_later_api_reads(self):
+        client = object()
+        with (
+            mock.patch.object(publisher, "set_labels") as set_labels,
+            mock.patch.object(publisher, "labels", return_value=set()),
+            mock.patch.object(
+                publisher,
+                "list_pages",
+                side_effect=publisher.PublishError("file inventory failed"),
+            ),
+        ):
+            with self.assertRaisesRegex(publisher.PublishError, "file inventory failed"):
+                publisher.block_exact_head(client, 4, "a" * 40, False)
+        set_labels.assert_called_once_with(client, 4, set(), {"claude:approved"})
+
+    def test_hold_added_during_blocking_wins_the_race(self):
+        client = object()
+        with (
+            mock.patch.object(publisher, "set_labels"),
+            mock.patch.object(
+                publisher,
+                "labels",
+                side_effect=[set(), {"needs-human"}],
+            ),
+            mock.patch.object(publisher, "list_pages", return_value=[]),
+            mock.patch.object(publisher, "ensure_pending_comment"),
+            mock.patch.object(publisher, "threads", return_value=[]),
+            mock.patch.object(publisher, "remove_legacy_pending_threads"),
+        ):
+            with self.assertRaisesRegex(
+                publisher.PublishError,
+                "needs-human was applied while blocking the head",
+            ):
+                publisher.block_exact_head(client, 4, "a" * 40, False)
+
+    def test_pending_state_is_a_standalone_comment_and_legacy_inline_is_removed(self):
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def rest(self, method, path, payload=None):
+                self.calls.append((method, path, payload))
+                return {}
+
+        client = Client()
+        publisher.ensure_pending_comment(client, 4, "a" * 40, [])
+        self.assertEqual(client.calls[0][0:2], ("POST", "/issues/4/comments"))
+        self.assertNotIn("thread", client.calls[0][2]["body"].lower())
+
+        legacy = {
+            "comments": {
+                "nodes": [
+                    {
+                        "databaseId": 99,
+                        "body": f"{publisher.LEGACY_PENDING_MARKER}\nlegacy inline state",
+                    }
+                ]
+            }
+        }
+        publisher.remove_legacy_pending_threads(client, [legacy])
+        self.assertEqual(client.calls[1][0:2], ("DELETE", "/pulls/comments/99"))
 
     def test_anchor_budget_exhaustion_is_visible(self):
         patch = "@@ -1,1 +1,1 @@\n" + " context\n" * 50_001

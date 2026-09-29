@@ -9,7 +9,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify-head:
+  prepare:
+    name: claude-prepare
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -17,13 +18,24 @@ jobs:
       human_rereview: ${{ steps.authorization.outputs.human_rereview }}
     permissions:
       contents: read
-      pull-requests: read
     steps:
       - name: Check out trusted base revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
+
+      # The permission-* inputs below narrow the generated App installation
+      # token and are independent of the GITHUB_TOKEN permissions declared in
+      # this job's permissions: block.
+      - name: Create Claude Review bot token
+        id: review-app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.CLAUDE_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY }}
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Determine human re-review authorization
         id: authorization
@@ -39,33 +51,17 @@ jobs:
 
       - name: Verify the event still names the current PR head
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.review-app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
           python3 scripts/publish_claude_review.py --mode verify
           --pr ${{ github.event.pull_request.number }}
           --sha ${{ github.event.pull_request.head.sha }}
 
-  block:
-    needs: verify-head
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - name: Check out trusted base revision
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          persist-credentials: false
-
       - name: Block the exact unreviewed head
         env:
-          CLAUDE_HUMAN_REREVIEW: ${{ needs.verify-head.outputs.human_rereview }}
-          GH_TOKEN: ${{ github.token }}
+          CLAUDE_HUMAN_REREVIEW: ${{ steps.authorization.outputs.human_rereview }}
+          GH_TOKEN: ${{ steps.review-app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
           python3 scripts/publish_claude_review.py --mode block
@@ -73,7 +69,8 @@ jobs:
           --sha ${{ github.event.pull_request.head.sha }}
 
   analyze:
-    needs: [verify-head, block]
+    name: claude-analyze
+    needs: prepare
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -239,15 +236,13 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  publish:
-    needs: [verify-head, analyze]
+  claude-review:
+    needs: [prepare, analyze]
     if: always() && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
-      issues: write
-      pull-requests: write
     steps:
       - name: Check out trusted base revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -255,15 +250,31 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
+      # The permission-* inputs below narrow the generated App installation
+      # token and are independent of the GITHUB_TOKEN permissions declared in
+      # this job's permissions: block.
+      - name: Create Claude Review bot token
+        id: review-app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.CLAUDE_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY }}
+          permission-issues: write
+          permission-pull-requests: write
+
       - name: Download sanitized review report
+        id: download
+        if: needs.analyze.result == 'success'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: claude-review-${{ github.event.pull_request.number }}
 
       - name: Publish current Claude review
+        id: publish
+        if: needs.analyze.result == 'success' && steps.download.outcome == 'success'
         env:
-          CLAUDE_HUMAN_REREVIEW: ${{ needs.verify-head.outputs.human_rereview }}
-          GH_TOKEN: ${{ github.token }}
+          CLAUDE_HUMAN_REREVIEW: ${{ needs.prepare.outputs.human_rereview }}
+          GH_TOKEN: ${{ steps.review-app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           REVIEW_APPROVED: ${{ needs.analyze.outputs.approved }}
           REVIEW_FINDING_COUNT: ${{ needs.analyze.outputs.finding_count }}
@@ -274,17 +285,12 @@ jobs:
           --sha ${{ github.event.pull_request.head.sha }}
           --report claude-review.md --artifact claude-review.json
 
-  claude-review:
-    needs: [verify-head, block, analyze, publish]
-    if: always() && github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
       - name: Enforce current Claude approval
+        if: always()
         env:
           ANALYZE_RESULT: ${{ needs.analyze.result }}
           APPROVED: ${{ needs.analyze.outputs.approved }}
-          PUBLISH_RESULT: ${{ needs.publish.result }}
+          PUBLISH_RESULT: ${{ steps.publish.outcome }}
         run: |
           if [ "$ANALYZE_RESULT" != "success" ] || [ "$PUBLISH_RESULT" != "success" ]; then
             echo "Claude review pipeline did not complete successfully." >&2

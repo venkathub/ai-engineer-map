@@ -1,7 +1,10 @@
 name: Validate
 
 on:
+  # Avoid duplicate checks for PR commits. Before opening a PR, contributors
+  # run ./run.sh check locally; branch CI begins with the pull_request event.
   push:
+    branches: [main]
   pull_request:
 
 permissions:

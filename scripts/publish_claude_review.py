@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -15,7 +16,8 @@ from typing import Any
 
 API = "https://api.github.com"
 AUDIT_MARKER = "<!-- claude-pr-review -->"
-PENDING_MARKER = "<!-- claude-review-thread -->"
+PENDING_MARKER = "<!-- claude-review-state -->"
+LEGACY_PENDING_MARKER = "<!-- claude-review-thread -->"
 ROUND_MARKER = "<!-- claude-review-round:"
 FINDING_MARKER = "<!-- claude-review-finding:"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -41,6 +43,17 @@ def inert(value: object) -> str:
 
 def inline(value: object) -> str:
     return " ".join(str(value).split()).replace("`", "'").replace("@", "@\u200b")
+
+
+def workflow_message(value: object) -> str:
+    """Escape a workflow-command message body, never command properties."""
+    return (
+        str(value)
+        .replace("%", "%25")
+        .replace("::", "%3A%3A")
+        .replace("\r", "%0D")
+        .replace("\n", "%0A")
+    )
 
 
 def safe_path(path: object) -> bool:
@@ -158,12 +171,24 @@ query($owner:String!,$repo:String!){repository(owner:$owner,name:$repo){viewerPe
 
 
 def verify_write_capability(client: GitHub) -> None:
-    """Fail before mutation unless GitHub recognizes this token as a repository writer."""
+    """Reject under-privileged user tokens; Actions tokens rely on job scopes."""
     owner, repo = client.repository.split("/", 1)
     data = client.graphql(PERMISSION_QUERY, {"owner": owner, "repo": repo})
     permission = data.get("repository", {}).get("viewerPermission")
-    if permission not in {"WRITE", "MAINTAIN", "ADMIN"}:
-        raise PublishError("GitHub token does not have repository write capability")
+    if permission in {"WRITE", "MAINTAIN", "ADMIN"}:
+        return
+    # GITHUB_TOKEN is an installation token whose endpoint permissions are
+    # defined by the job's `permissions:` block. GraphQL viewerPermission can
+    # still report READ, so repository-role probing cannot validate it. The
+    # trusted workflow declares issues/pull-requests write; every subsequent
+    # mutation remains fail-closed if GitHub denies that endpoint scope.
+    if os.environ.get("GITHUB_ACTIONS") == "true" and permission == "READ":
+        print(
+            "GitHub Actions token write capability is enforced by job-scoped "
+            "permissions; subsequent mutations remain fail-closed"
+        )
+        return
+    raise PublishError("GitHub token does not have repository write capability")
 
 
 def threads(client: GitHub, pr: int) -> list[dict[str, Any]]:
@@ -223,8 +248,8 @@ def update_root_comment(client: GitHub, thread: dict[str, Any], body: str) -> No
     client.rest("PATCH", f"/pulls/comments/{comment_id}", {"body": body[:60_000]})
 
 
-def ensure_pending(
-    client: GitHub, pr: int, sha: str, all_threads: list[dict[str, Any]], anchor: dict[str, object] | None
+def ensure_pending_comment(
+    client: GitHub, pr: int, sha: str, issue_comments: list[dict[str, Any]]
 ) -> None:
     body = "\n".join(
         [
@@ -232,15 +257,49 @@ def ensure_pending(
             "### 🔒 Claude review pending",
             "",
             f"Commit `{sha[:12]}` is blocked until the reviewer approves this exact revision.",
-            "The Claude reviewer owns this thread; authors must not resolve it.",
+            "This standalone lifecycle comment is updated after the exact-head review.",
         ]
     )
-    current = marker_thread(all_threads, PENDING_MARKER)
+    current = next(
+        (comment for comment in issue_comments if PENDING_MARKER in (comment.get("body") or "")),
+        None,
+    )
     if current:
-        update_root_comment(client, current, body)
-        set_resolved(client, current, False)
+        client.rest("PATCH", f"/issues/comments/{current['id']}", {"body": body})
     else:
-        create_thread_or_review(client, pr, sha, anchor, body)
+        client.rest("POST", f"/issues/{pr}/comments", {"body": body})
+
+
+def remove_legacy_pending_threads(client: GitHub, all_threads: list[dict[str, Any]]) -> None:
+    """Remove obsolete inline lifecycle markers; inline threads are findings only."""
+    for thread in all_threads:
+        roots = thread["comments"]["nodes"]
+        if not any(LEGACY_PENDING_MARKER in (comment.get("body") or "") for comment in roots):
+            continue
+        comment_id = roots[0]["databaseId"]
+        client.rest("DELETE", f"/pulls/comments/{comment_id}")
+
+
+def block_exact_head(client: GitHub, pr: int, sha: str, forced_human_review: bool) -> None:
+    """Revoke stale approval before preparing review state for a new head."""
+    # This must remain the first mutation. A later file/thread API failure may
+    # leave the required check red, but must never leave the previous head's
+    # advisory approval label visible on the new commit.
+    set_labels(client, pr, set(), {"claude:approved"})
+    if "needs-human" in labels(client, pr) and not forced_human_review:
+        raise PublishError(
+            "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
+        )
+    issue_comments = list_pages(client, f"/issues/{pr}/comments")
+    ensure_pending_comment(client, pr, sha, issue_comments)
+    all_threads = threads(client, pr)
+    remove_legacy_pending_threads(client, all_threads)
+    # Narrow the ordinary-run TOCTOU window before changing pending state. A
+    # hold added while ensure_pending was running must win this race.
+    if "needs-human" in labels(client, pr) and not forced_human_review:
+        raise PublishError(
+            "needs-human was applied while blocking the head; refusing label mutation"
+        )
 
 
 def labels(client: GitHub, pr: int) -> set[str]:
@@ -322,13 +381,13 @@ def finding_anchor(
     return fallback
 
 
-def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[str, Any] | None]:
-    """Return a stable round for this SHA using explicit markers, not comment ordering."""
+def review_round(records_source: list[dict[str, Any]], sha: str) -> tuple[int, dict[str, Any] | None]:
+    """Return a stable round from legacy comments and native review records."""
     records: list[tuple[dict[str, Any], str, int | None]] = []
-    for comment in comments:
-        match = ROUND_RE.search(comment.get("body") or "")
+    for record in records_source:
+        match = ROUND_RE.search(record.get("body") or "")
         if match:
-            records.append((comment, match.group(1), int(match.group(2)) if match.group(2) else None))
+            records.append((record, match.group(1), int(match.group(2)) if match.group(2) else None))
     same = next((record for record in records if record[1] == sha), None)
     explicit_max = max((record[2] or 0 for record in records), default=0)
     if same:
@@ -339,6 +398,28 @@ def review_round(comments: list[dict[str, Any]], sha: str) -> tuple[int, dict[st
         return 1, same[0]
     legacy_round = 1 if any(record[2] is None for record in records) else 0
     return max(explicit_max, legacy_round) + 1, None
+
+
+def ensure_native_round_review(
+    client: GitHub,
+    pr: int,
+    sha: str,
+    body: str,
+    reviews: list[dict[str, Any]] | None = None,
+) -> None:
+    """Expose each exact-head verdict once; API failures propagate and fail the gate."""
+    marker = f"{ROUND_MARKER}{sha}:"
+    if reviews is None:
+        reviews = list_pages(client, f"/pulls/{pr}/reviews")
+    if any(marker in (review.get("body") or "") for review in reviews):
+        return
+    # Do not catch this mutation: visibility is part of successful publication.
+    # If it fails, no native marker exists, so a rerun retries the POST.
+    client.rest(
+        "POST",
+        f"/pulls/{pr}/reviews",
+        {"body": body[:60_000], "commit_id": sha, "event": "COMMENT"},
+    )
 
 
 def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]]) -> None:
@@ -393,7 +474,11 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         return
     assert review is not None
 
-    round_number, same_round = review_round(issue_comments, args.sha)
+    # Legacy versions also posted this marker as an issue comment. Read both
+    # locations so round numbers remain monotonic without publishing the same
+    # summary twice in the Conversation timeline.
+    native_reviews = list_pages(client, f"/pulls/{args.pr}/reviews")
+    round_number, _ = review_round([*issue_comments, *native_reviews], args.sha)
     counts = {severity: 0 for severity in ("critical", "high", "medium", "low")}
     for finding in findings:
         severity = finding.get("severity")
@@ -425,11 +510,8 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
                 ]
             )
     body = "\n".join(summary)[:60_000]
-    require_publish_authorization(client, args.pr, forced_human_review, "round summary mutation")
-    if same_round:
-        client.rest("PATCH", f"/issues/comments/{same_round['id']}", {"body": body})
-    else:
-        client.rest("POST", f"/issues/{args.pr}/comments", {"body": body})
+    require_publish_authorization(client, args.pr, forced_human_review, "native review mutation")
+    ensure_native_round_review(client, args.pr, args.sha, body, native_reviews)
 
     right, _left, fallback, anchors_truncated = diff_anchors(files)
     if anchors_truncated:
@@ -438,17 +520,28 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         # unrelated early line from a partially scanned diff.
         fallback = None
     all_threads = threads(client, args.pr)
-    pending = marker_thread(all_threads, PENDING_MARKER)
+    pending = next(
+        (comment for comment in issue_comments if PENDING_MARKER in (comment.get("body") or "")),
+        None,
+    )
     approved = review["verdict"] == "APPROVED"
     if approved:
-        require_publish_authorization(client, args.pr, forced_human_review, "approval thread mutation")
+        require_publish_authorization(client, args.pr, forced_human_review, "approval state mutation")
         if pending:
-            update_root_comment(
-                client,
-                pending,
-                "\n".join([PENDING_MARKER, "### ✅ Claude approved", "", f"Approved exact commit `{args.sha}` in round {round_number}."]),
+            client.rest(
+                "PATCH",
+                f"/issues/comments/{pending['id']}",
+                {
+                    "body": "\n".join(
+                        [
+                            PENDING_MARKER,
+                            "### ✅ Claude approved",
+                            "",
+                            f"Approved exact commit `{args.sha}` in round {round_number}.",
+                        ]
+                    )
+                },
             )
-            set_resolved(client, pending, True)
         for thread in all_threads:
             if any(FINDING_MARKER in (comment.get("body") or "") for comment in thread["comments"]["nodes"]):
                 set_resolved(client, thread, True)
@@ -456,9 +549,6 @@ def publish(args: argparse.Namespace, client: GitHub, files: list[dict[str, Any]
         set_labels(client, args.pr, {"claude:approved"}, {"claude:changes-requested", "needs-human"})
         return
 
-    require_publish_authorization(client, args.pr, forced_human_review, "pending thread mutation")
-    if pending:
-        set_resolved(client, pending, False)
     current_markers = {
         finding_marker(finding, args.sha)
         for finding in findings
@@ -508,29 +598,27 @@ def main() -> int:
     if args.mode == "verify":
         return 0
     verify_write_capability(client)
-    files = list_pages(client, f"/pulls/{args.pr}/files", limit=3)
-    _right, _left, fallback, _anchors_truncated = diff_anchors(files)
-    all_threads = threads(client, args.pr)
     if args.mode == "block":
         forced_human_review = os.environ.get("CLAUDE_HUMAN_REREVIEW") == "true"
-        if "needs-human" in labels(client, args.pr) and not forced_human_review:
-            raise PublishError(
-                "automatic Claude review is paused by needs-human; a new maintainer/Codex fix commit is required"
-            )
-        ensure_pending(client, args.pr, args.sha, all_threads, fallback)
-        # Narrow the ordinary-run TOCTOU window before changing approval state.
-        # A hold added while ensure_pending was running must win this race.
-        if "needs-human" in labels(client, args.pr) and not forced_human_review:
-            raise PublishError(
-                "needs-human was applied while blocking the head; refusing label mutation"
-            )
-        set_labels(client, args.pr, set(), {"claude:approved"})
+        block_exact_head(client, args.pr, args.sha, forced_human_review)
         return 0
     if args.report is None or args.artifact is None:
         raise SystemExit("--report and --artifact are required in publish mode")
+    files = list_pages(client, f"/pulls/{args.pr}/files", limit=3)
     publish(args, client, files)
     return 0
 
 
+def cli() -> int:
+    try:
+        return main()
+    except PublishError as exc:
+        print(
+            f"::error title=Claude review publisher::{workflow_message(exc)}",
+            file=sys.stderr,
+        )
+        return 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())
